@@ -14,6 +14,10 @@ seed/
 │   ├── privacy.md         # Privacy policy document
 │   ├── shipping.md        # Shipping policy document
 │   └── return.md          # Return & refund policy document
+├── faq/
+│   ├── general.md         # General FAQ (orders, payments, shipping, etc.)
+│   ├── products.md        # Product-related FAQ
+│   └── account.md         # Account & profile FAQ
 └── utils/
     └── embeddings.ts      # OpenAI embedding utilities
 ```
@@ -42,8 +46,9 @@ bun run seed/ingest.ts
 The script will:
 1. Clear existing knowledge base entries
 2. Ingest all policy markdown files with embeddings
-3. Ingest all products from `sample-products.json` with embeddings
-4. Store everything in the `KnowledgeBase` table with vector embeddings
+3. Ingest all FAQ markdown files with embeddings
+4. Ingest all products from `sample-products.json` with embeddings (if using seed-csv.ts)
+5. Store everything in the `KnowledgeBase` table with vector embeddings
 
 ## Adding Your Own Data
 
@@ -75,11 +80,22 @@ The script will:
 2. The file will be automatically ingested when you run the seed script
 3. The filename (without .md) will be used as the `sourceId` in the database
 
+### Adding FAQs
+
+1. Create a new markdown file in `faq/` folder
+2. The file will be automatically ingested when you run the seed script
+3. FAQs are organized by topic:
+   - `general.md` - General questions about orders, payments, shipping, returns, customer support
+   - `products.md` - Product-related questions (specifications, availability, quality, warranty)
+   - `account.md` - Account and profile management questions
+4. The filename (without .md) will be used as the `sourceId` in the database
+5. FAQs are searchable through the AI chat assistant using the `search_policies` tool
+
 ## Vector Embeddings
 
 - **Model**: OpenAI `text-embedding-3-small`
 - **Dimensions**: 1536 (matches PostgreSQL `vector(1536)`)
-- **Usage**: Embeddings are used for semantic search across products and policies
+- **Usage**: Embeddings are used for semantic search across products, policies, and FAQs
 
 ## Notes
 

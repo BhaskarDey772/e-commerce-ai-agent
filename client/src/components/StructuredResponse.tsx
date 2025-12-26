@@ -4,6 +4,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { config } from "@/lib/config";
 
+// New format: { message: string, data: object | null }
+interface NewResponseFormat {
+  message: string;
+  data: {
+    products?: Array<{
+      id: string | number;
+      name: string;
+      price: number;
+      brand: string | null;
+      category: string;
+      rating: number | null;
+      productUrl?: string | null;
+    }>;
+  } | null;
+}
+
+// Old format (for backward compatibility)
 interface ProductResponse {
   type: "product_response";
   summary: string;
@@ -31,13 +48,206 @@ interface RefusalResponse {
   message: string;
 }
 
-type StructuredResponse = ProductResponse | PolicyResponse | RefusalResponse;
+type StructuredResponse = NewResponseFormat | ProductResponse | PolicyResponse | RefusalResponse;
 
 interface StructuredResponseProps {
   response: StructuredResponse;
 }
 
 export function StructuredResponse({ response }: StructuredResponseProps) {
+  // Handle new format: { message, data }
+  if ("message" in response && "data" in response && !("type" in response)) {
+    const newResponse = response as NewResponseFormat;
+
+    // Product response
+    if (newResponse.data && newResponse.data.products && Array.isArray(newResponse.data.products)) {
+      return (
+        <div className="space-y-4">
+          {/* Message */}
+          <div className="flex items-start gap-2">
+            <Package className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <div className="text-sm text-muted-foreground leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                    strong: ({ children }) => (
+                      <strong className="font-semibold text-foreground">{children}</strong>
+                    ),
+                    em: ({ children }) => <em className="italic">{children}</em>,
+                    ul: ({ children }) => (
+                      <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
+                    ),
+                    li: ({ children }) => <li className="ml-2">{children}</li>,
+                    code: ({ children }) => (
+                      <code className="bg-secondary px-1.5 py-0.5 rounded text-xs font-mono">
+                        {children}
+                      </code>
+                    ),
+                    pre: ({ children }) => (
+                      <pre className="bg-secondary p-2 rounded text-xs overflow-x-auto mb-2">
+                        {children}
+                      </pre>
+                    ),
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        {children}
+                      </a>
+                    ),
+                  }}
+                >
+                  {newResponse.message}
+                </ReactMarkdown>
+              </div>
+            </div>
+          </div>
+
+          {/* Products Grid */}
+          {newResponse.data.products.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              {newResponse.data.products.map((product, idx) => (
+                <div
+                  key={`${product.id}-${idx}`}
+                  className="glass-card rounded-lg p-4 border border-border/50 hover:border-primary/30 transition-colors"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="font-semibold text-sm line-clamp-2 flex-1">{product.name}</h4>
+                      {product.rating !== null &&
+                        product.rating !== undefined &&
+                        typeof product.rating === "number" && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                            <span className="text-xs">{product.rating.toFixed(1)}</span>
+                          </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {product.brand && (
+                        <Badge variant="secondary" className="text-xs">
+                          {product.brand}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-xs">
+                        {product.category}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                      <span className="text-lg font-bold text-primary">
+                        ₹{product.price.toLocaleString()}
+                      </span>
+                      {product.productUrl ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs cursor-pointer"
+                          onClick={() => {
+                            window.open(product.productUrl!, "_blank");
+                          }}
+                        >
+                          View
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs cursor-pointer"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(
+                                `${config.apiBaseUrl}/products/${product.id}`,
+                              );
+                              const data = await res.json();
+                              if (data.success && data.data.productUrl) {
+                                window.open(data.data.productUrl, "_blank");
+                              } else {
+                                alert(
+                                  `Product: ${product.name}\nPrice: ₹${product.price.toLocaleString()}`,
+                                );
+                              }
+                            } catch (error) {
+                              console.error("Error fetching product:", error);
+                            }
+                          }}
+                        >
+                          View
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Policy/FAQ/General response (data is null)
+    return (
+      <div className="space-y-3">
+        <div className="flex items-start gap-2">
+          <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="text-sm text-muted-foreground leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  strong: ({ children }) => (
+                    <strong className="font-semibold text-foreground">{children}</strong>
+                  ),
+                  em: ({ children }) => <em className="italic">{children}</em>,
+                  ul: ({ children }) => (
+                    <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
+                  ),
+                  ol: ({ children }) => (
+                    <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
+                  ),
+                  li: ({ children }) => <li className="ml-2">{children}</li>,
+                  code: ({ children }) => (
+                    <code className="bg-secondary px-1.5 py-0.5 rounded text-xs font-mono">
+                      {children}
+                    </code>
+                  ),
+                  pre: ({ children }) => (
+                    <pre className="bg-secondary p-2 rounded text-xs overflow-x-auto mb-2">
+                      {children}
+                    </pre>
+                  ),
+                  a: ({ href, children }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      {children}
+                    </a>
+                  ),
+                }}
+              >
+                {newResponse.message}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle old format (backward compatibility)
   if (response.type === "product_response") {
     return (
       <div className="space-y-4">
@@ -346,14 +556,15 @@ export function ParsedMessage({ content }: ParsedMessageProps) {
     return <p className="text-sm whitespace-pre-wrap leading-relaxed">{content}</p>;
   }
 
-  // Check if it's a structured response
+  // Check if it's a structured response (new or old format)
   if (
     parsed &&
     typeof parsed === "object" &&
     parsed !== null &&
-    "type" in parsed &&
-    typeof parsed.type === "string" &&
-    ["product_response", "policy_response", "refusal"].includes(parsed.type)
+    (("message" in parsed && "data" in parsed) ||
+      ("type" in parsed &&
+        typeof parsed.type === "string" &&
+        ["product_response", "policy_response", "refusal"].includes(parsed.type)))
   ) {
     return <StructuredResponse response={parsed as StructuredResponse} />;
   }

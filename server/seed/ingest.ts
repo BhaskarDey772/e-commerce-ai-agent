@@ -20,6 +20,9 @@ async function main() {
     // Ingest policies
     await ingestPolicies();
 
+    // Ingest FAQs
+    await ingestFAQs();
+
     console.log("\n✅ Seed process completed successfully!");
   } catch (error) {
     console.error("❌ Error during seed process:", error);
@@ -76,6 +79,67 @@ async function ingestPolicies() {
   }
 
   console.log("✅ Policies ingested\n");
+}
+
+/**
+ * Ingest FAQ markdown files
+ */
+async function ingestFAQs() {
+  console.log("❓ Ingesting FAQs...");
+
+  const faqDir = join(process.cwd(), "seed", "faq");
+
+  try {
+    // Read all markdown files from the faq directory
+    const files = await readdir(faqDir);
+    const faqFiles = files.filter((file) => file.endsWith(".md"));
+
+    if (faqFiles.length === 0) {
+      console.log("  ℹ️  No FAQ files found\n");
+      return;
+    }
+
+    for (const fileName of faqFiles) {
+      try {
+        const filePath = join(faqDir, fileName);
+        const content = await readFile(filePath, "utf-8");
+
+        // Extract title from first line (usually # Title)
+        const titleMatch = content.match(/^#\s+(.+)$/m);
+        const title = titleMatch ? titleMatch[1] : fileName.replace(".md", "");
+
+        // Generate embedding for the entire FAQ
+        console.log(`  📝 Processing ${fileName}...`);
+        const embedding = await generateEmbedding(content);
+        const embeddingVector = embeddingToVectorString(embedding);
+
+        // Determine source type
+        const sourceType = fileName.replace(".md", "");
+
+        // Store in database using raw SQL for vector support
+        await prisma.$executeRaw`
+          INSERT INTO "KnowledgeBase" (id, source, "sourceId", title, content, embedding, "createdAt")
+          VALUES (
+            gen_random_uuid()::text,
+            ${"faq"},
+            ${sourceType},
+            ${title},
+            ${content},
+            ${embeddingVector}::vector,
+            NOW()
+          )
+        `;
+
+        console.log(`  ✅ Ingested ${fileName}`);
+      } catch (error) {
+        console.error(`  ❌ Error processing ${fileName}:`, error);
+      }
+    }
+
+    console.log("✅ FAQs ingested\n");
+  } catch (error) {
+    console.error("  ❌ Error reading FAQ directory:", error);
+  }
 }
 
 // Run the seed script
