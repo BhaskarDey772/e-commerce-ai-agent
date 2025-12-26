@@ -1,17 +1,10 @@
-import { MessageCircle, ShoppingBag, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { ShoppingBag, Sparkles } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Button } from "./components/ui/button";
-import ChatPage from "./pages/ChatPage";
 import ProductsPage from "./pages/ProductsPage";
 
-type Page = "products" | "chat";
-
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>("products");
-
   return (
     <TooltipProvider>
       <Toaster />
@@ -31,32 +24,17 @@ function App() {
               </div>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex gap-2 p-1 rounded-xl bg-secondary/50 border border-border/50">
-              <Button
-                variant={currentPage === "products" ? "default" : "ghost"}
-                onClick={() => setCurrentPage("products")}
-                className="gap-2"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                Products
-              </Button>
-              <Button
-                variant={currentPage === "chat" ? "default" : "ghost"}
-                onClick={() => setCurrentPage("chat")}
-                className="gap-2"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Chat
-              </Button>
+            {/* Navigation */}
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-primary" />
+              <span className="font-medium">Products</span>
             </div>
           </div>
         </nav>
 
         {/* Main Content */}
         <main className="container mx-auto px-4 py-6">
-          {currentPage === "products" && <ProductsPage />}
-          {currentPage === "chat" && <ChatPage />}
+          <ProductsPage />
         </main>
 
         {/* Footer Glow Effect */}

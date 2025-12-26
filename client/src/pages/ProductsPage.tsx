@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChatButton, ChatWidget } from "@/components/ChatWidget";
 import { ProductCard } from "@/components/ProductCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,7 @@ export default function ProductsPage() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // Filters
@@ -627,6 +629,17 @@ export default function ProductsPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Chat Widget */}
+      {chatOpen ? (
+        <ChatWidget
+          isOpen={chatOpen}
+          onClose={() => setChatOpen(false)}
+          onMinimize={() => setChatOpen(false)}
+        />
+      ) : (
+        <ChatButton onClick={() => setChatOpen(true)} />
+      )}
     </div>
   );
 }

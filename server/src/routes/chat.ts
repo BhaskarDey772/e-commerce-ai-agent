@@ -15,7 +15,12 @@ const chatModel = openai("gpt-4o-mini");
 
 // Validation schemas
 const sendMessageSchema = z.object({
-  message: z.string().min(1).max(10000),
+  message: z
+    .string()
+    .min(1, "Message cannot be empty")
+    .max(10000, "Message is too long (max 10000 characters)")
+    .trim()
+    .refine((val) => val.length > 0, "Message cannot be empty or only whitespace"),
   sessionId: z.string().uuid().optional(),
   conversationId: z.string().uuid().optional(),
 });
@@ -492,7 +497,11 @@ If unsure:
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const appError = AppError.BadRequest("Invalid request body");
+      const firstError = error.issues[0];
+      const errorMessage =
+        firstError?.message ||
+        (firstError?.path.length ? `${firstError.path.join(".")} is invalid` : "Invalid request body");
+      const appError = AppError.BadRequest(errorMessage);
       return res.status(appError.statusCode).json(errorResponse(appError));
     }
     if (error instanceof AppError) {
