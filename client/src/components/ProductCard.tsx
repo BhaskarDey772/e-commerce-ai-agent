@@ -38,7 +38,8 @@ export function ProductCard({ product, onClick, index = 0 }: ProductCardProps) {
         <div className="relative w-28 h-28 md:w-36 md:h-36 flex-shrink-0 rounded-lg overflow-hidden bg-secondary">
           {product.image ? (
             <img
-              src={getProxiedImageUrl(product.image, product.id)}
+              // src={getProxiedImageUrl(product.image, product.id)}
+              src={product.image}
               alt={product.name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               onError={(e) => {
