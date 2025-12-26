@@ -64,6 +64,7 @@ interface ProductsResponse {
 }
 
 import { config } from "@/lib/config";
+import { getProxiedImageUrl } from "@/lib/utils";
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -240,9 +241,9 @@ export default function ProductsPage() {
   ].filter(Boolean).length;
 
   const allImages = productDetails?.images?.length
-    ? productDetails.images
+    ? productDetails.images.map((img) => getProxiedImageUrl(img, productDetails?.id))
     : productDetails?.image
-      ? [productDetails.image]
+      ? [getProxiedImageUrl(productDetails.image, productDetails.id)]
       : [];
 
   return (

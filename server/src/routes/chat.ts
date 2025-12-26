@@ -500,7 +500,9 @@ If unsure:
       const firstError = error.issues[0];
       const errorMessage =
         firstError?.message ||
-        (firstError?.path.length ? `${firstError.path.join(".")} is invalid` : "Invalid request body");
+        (firstError?.path.length
+          ? `${firstError.path.join(".")} is invalid`
+          : "Invalid request body");
       const appError = AppError.BadRequest(errorMessage);
       return res.status(appError.statusCode).json(errorResponse(appError));
     }

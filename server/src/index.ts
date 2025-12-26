@@ -7,6 +7,7 @@ import { testDatabaseConnection } from "@/lib/prisma";
 import { testRedisConnection } from "@/lib/redis";
 import { errorResponse, successResponse } from "@/lib/response";
 import chatRoutes from "@/routes/chat";
+import imageRoutes from "@/routes/images";
 import productRoutes from "@/routes/products";
 
 const app = express();
@@ -41,6 +42,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Routes
 app.use("/chat", chatRoutes);
 app.use("/products", productRoutes);
+app.use("/api/images", imageRoutes);
 
 // 404 handler
 app.use((_req: Request, _res: Response, next: NextFunction) => {

@@ -40,3 +40,6 @@ logs
 *.md
 !README.md
 
+# Cache (will be created at runtime)
+cache
+

@@ -28,6 +28,9 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 # Generate Prisma Client for production
 RUN npx prisma generate
 
+# Create cache directory
+RUN mkdir -p /app/cache/images
+
 # Expose port
 EXPOSE 3001
 
