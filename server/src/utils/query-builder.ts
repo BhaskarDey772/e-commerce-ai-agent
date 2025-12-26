@@ -7,6 +7,7 @@ import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { prisma } from "@/lib/prisma";
 import { generateEmbedding } from "../utils/embeddings";
+import { normalizeQuery } from "./query-normalizer";
 
 export interface ProductQuery {
   category?: string;
@@ -40,6 +41,7 @@ export interface ProductSearchResult {
  */
 async function buildProductQueryWithLLM(userQuery: string): Promise<ProductQuery> {
   const queryModel = openai("gpt-4o-mini");
+  const normalizedQuery = normalizeQuery(userQuery);
 
   const result = await generateText({
     model: queryModel,
@@ -48,8 +50,16 @@ async function buildProductQueryWithLLM(userQuery: string): Promise<ProductQuery
         role: "system",
         content: `You are a query builder that converts natural language product search requests into structured JSON queries.
 
+IMPORTANT - TYPO HANDLING:
+- Users may have typos in their queries. Understand the INTENT, not just exact spelling.
+- Common typos: "jewellary/jewelry" = jewellery, "moblie" = mobile, "shooes" = shoes, "laptoop" = laptop
+- "jewellary", "jewelry", "jewlery", "jewellry" all mean "jewellery"
+- "moblie", "phne" mean "mobile" or "phone"
+- "shooes", "shose" mean "shoes" or "footwear"
+- Always interpret the user's intent correctly despite spelling mistakes
+
 Product Schema:
-- category: string (optional) - e.g., "laptop", "mobile", "electronics", "clothing", "footwear", "watch", "camera", "tv", "headphone", "furniture"
+- category: string (optional) - e.g., "laptop", "mobile", "electronics", "clothing", "footwear", "watch", "camera", "tv", "headphone", "furniture", "jewellery"
 - brand: string (optional) - e.g., "Samsung", "Apple", "Nike", "HP", "Dell"
 - minPrice: number (optional) - minimum price in rupees
 - maxPrice: number (optional) - maximum price in rupees
@@ -58,20 +68,27 @@ Product Schema:
 - sortBy: "price_asc" | "price_desc" | "rating_desc" | "name_asc" | "name_desc" | "newest" (default: "newest")
 
 Rules:
-- Extract price mentions (e.g., "under 20k" = maxPrice: 20000, "above 5k" = minPrice: 5000)
-- Extract category from keywords (e.g., "laptop", "phone", "shoes")
+- Extract price mentions (e.g., "under 20k" = maxPrice: 20000, "above 5k" = minPrice: 5000, "under 1000" = maxPrice: 1000)
+- Extract category from keywords, handling typos intelligently (e.g., "jewellary" = "jewellery", "moblie" = "mobile", "shooes" = "footwear")
 - Extract brand names if mentioned
 - Set minRating to 4.0 if user asks for "best", "top", or "high rating"
 - Set sortBy to "rating_desc" for best/top products, "price_asc" for cheapest, "price_desc" for most expensive
+- For price-based queries (e.g., "under 1000"), set maxPrice appropriately
 - Return ONLY valid JSON, no explanations
 
-Example:
+Examples:
 User: "find me laptop under 20k"
-Response: {"category": "laptop", "maxPrice": 20000, "sortBy": "newest"}`,
+Response: {"category": "laptop", "maxPrice": 20000, "sortBy": "newest"}
+
+User: "find me good jewellary under 1000 rupees"
+Response: {"category": "jewellery", "maxPrice": 1000, "minRating": 4.0, "sortBy": "rating_desc"}
+
+User: "show me moblie phones"
+Response: {"category": "mobile", "sortBy": "newest"}`,
       },
       {
         role: "user",
-        content: userQuery,
+        content: normalizedQuery,
       },
     ],
   });
@@ -440,9 +457,9 @@ export async function searchProductsForLLM(
     productUrl: string | null;
   }[];
 }> {
-  // Step 1: Call LLM to convert user message to JSON query
-
-  const structuredQuery = await buildProductQuery(userQuery);
+  // Step 1: Normalize and convert user message to JSON query
+  const normalizedQuery = normalizeQuery(userQuery);
+  const structuredQuery = await buildProductQuery(normalizedQuery);
 
   // Step 2: Generate Prisma query from JSON and fetch products (fetch more for filtering)
   const products = await executeProductQuery({ ...structuredQuery, limit: limit * 2 });
@@ -455,8 +472,8 @@ export async function searchProductsForLLM(
     };
   }
 
-  // Step 3: Embed user query
-  const userQueryEmbedding = await generateEmbedding(userQuery);
+  // Step 3: Embed normalized user query
+  const userQueryEmbedding = await generateEmbedding(normalizedQuery);
 
   // Step 4: Embed product descriptions and calculate similarity
   const productsWithSimilarity = await Promise.all(

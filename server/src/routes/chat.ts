@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { errorResponse, successResponse } from "@/lib/response";
 import { generateEmbedding } from "@/utils/embeddings";
 import { searchKnowledge } from "@/utils/knowledge";
+import { normalizeQuery } from "@/utils/query-normalizer";
 import { searchProductsForLLM } from "@/utils/query-builder";
 
 /**
@@ -51,6 +52,7 @@ const sendMessageSchema = z.object({
 router.post("/message", async (req: Request, res: Response) => {
   try {
     const body = sendMessageSchema.parse(req.body);
+    const normalizedMessage = normalizeQuery(body.message);
 
     let conversation;
     let sessionId: string;
@@ -139,7 +141,8 @@ router.post("/message", async (req: Request, res: Response) => {
         }),
         execute: async (input: unknown) => {
           const { query } = input as { query: string };
-          const result = await searchProductsForLLM(query, 7);
+          const normalizedQuery = normalizeQuery(query);
+          const result = await searchProductsForLLM(normalizedQuery, 7);
 
           // Store the result for post-processing
           productToolResultRef.value = result as ProductToolResult;
@@ -156,8 +159,9 @@ router.post("/message", async (req: Request, res: Response) => {
         }),
         execute: async (input: unknown) => {
           const { query } = input as { query: string };
+          const normalizedQuery = normalizeQuery(query);
           try {
-            const knowledge = await searchKnowledge(query, 5);
+            const knowledge = await searchKnowledge(normalizedQuery, 5);
 
             const policyResult: PolicyToolResult = {
               type: "policy_response",
@@ -204,8 +208,19 @@ STRICT RULES:
   "I am an e-commerce customer support agent from Spur."
 - Refuse illegal, NSFW, hateful, abusive, political, or unrelated questions.
 
+UNDERSTANDING USER REQUESTS:
+- Users may have typos in their queries (e.g., "jewellary" means "jewellery", "moblie" means "mobile")
+- Understand the INTENT behind the query, not just exact words
+- Common variations: "jewellary/jewelry" = jewellery, "shooes" = shoes, "moblie" = mobile, "laptoop" = laptop
+- When users say "find me X" or "show me X", they want product search
+- Price queries like "under 1000" or "below 5000" should be interpreted correctly
+- Be intelligent about understanding what users mean, even with spelling mistakes
+
 TOOLS:
 1. search_products → for finding / comparing / recommending products
+   - Use this when users ask to find, show, search, or recommend products
+   - Use this for price-based queries (e.g., "under 1000", "below 5000")
+   - Use this for category-based queries (e.g., "jewellery", "laptops", "shoes")
 2. search_policies → for shipping, returns, privacy, store rules
 
 IMPORTANT: You MUST use the appropriate tool when the user asks about products or policies.
@@ -242,7 +257,7 @@ For off-topic or refused queries:
         role: (m.sender === "USER" ? "user" : "assistant") as "user" | "assistant",
         content: m.content,
       })),
-      { role: "user" as const, content: body.message },
+      { role: "user" as const, content: normalizedMessage },
     ];
 
     const result = await generateText({
@@ -261,7 +276,7 @@ For off-topic or refused queries:
       const productData = productToolResult;
 
       // Embed user query and product descriptions for analysis
-      const userQueryEmbedding = await generateEmbedding(body.message);
+      const userQueryEmbedding = await generateEmbedding(normalizedMessage);
 
       // Embed each product description
       const productEmbeddings = await Promise.all(
