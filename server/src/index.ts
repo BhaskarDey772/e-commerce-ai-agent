@@ -18,7 +18,7 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: ["http://localhost:5173"].filter((url): url is string => !!url),
+    origin: ["http://localhost:5173", env.FRONTEND_URL].filter((url): url is string => !!url),
     credentials: true,
   }),
 );
