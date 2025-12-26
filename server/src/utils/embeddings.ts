@@ -1,9 +1,7 @@
-import OpenAI from "openai";
-import { env } from "../env";
+import { openai } from "@ai-sdk/openai";
+import { embed } from "ai";
 
-const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
-});
+const embeddingModel = openai.embedding("text-embedding-3-small");
 
 /**
  * Generate embedding for text using OpenAI's text-embedding-3-small model
@@ -11,13 +9,12 @@ const openai = new OpenAI({
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: text,
+    const { embedding } = await embed({
+      model: embeddingModel,
+      value: text,
     });
 
-    const embedding = response.data[0]?.embedding;
-    if (!embedding) {
+    if (!embedding || embedding.length === 0) {
       throw new Error("No embedding data returned from OpenAI");
     }
 
@@ -35,12 +32,16 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  */
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   try {
-    const response = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: texts,
-    });
+    const embeddings = await Promise.all(
+      texts.map((text) =>
+        embed({
+          model: embeddingModel,
+          value: text,
+        }),
+      ),
+    );
 
-    return response.data.map((item) => item.embedding);
+    return embeddings.map((result) => result.embedding);
   } catch (error) {
     console.error("Error generating embeddings:", error);
     throw new Error(
