@@ -4,6 +4,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
   FRONTEND_URL: z.string().url().default("http://localhost:5173"),
+  FRONTEND_URL_VERCEL: z.string().url().optional(),
   DATABASE_URL: z.string().url(),
   REDIS_HOST: z.string().default("localhost"),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
