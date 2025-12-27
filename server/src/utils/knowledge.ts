@@ -2,11 +2,11 @@
 
 import { openai } from "@ai-sdk/openai";
 import { embed } from "ai";
-import { prisma } from "../lib/prisma";
+import { prisma } from "@/lib";
 
 const embeddingModel = openai.embedding("text-embedding-3-small");
 
-export async function searchKnowledge(query: string, limit = 4) {
+export async function searchKnowledge(query: string, limit: number) {
   const { embedding } = await embed({
     model: embeddingModel,
     value: query,

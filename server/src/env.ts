@@ -10,6 +10,8 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().optional(),
   OPENAI_API_KEY: z.string().min(1, "OpenAI API key is required"),
+  MAX_PRODUCT_ITEMS: z.coerce.number().int().positive().default(7),
+  MAX_KNOWLEDGE_BASE_SEARCH_ITEMS: z.coerce.number().int().positive().default(5),
 });
 
 export type Env = z.infer<typeof envSchema>;

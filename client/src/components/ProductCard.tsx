@@ -1,25 +1,8 @@
 import { Star, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import type { Product, ProductCardProps } from "@/types";
 import { getProxiedImageUrl } from "@/lib/utils";
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number | null;
-  originalPrice?: number | null;
-  image?: string;
-  rating?: number | null;
-  brand?: string;
-  description?: string;
-}
-
-interface ProductCardProps {
-  product: Product;
-  onClick: () => void;
-  index?: number;
-}
 
 export function ProductCard({ product, onClick, index = 0 }: ProductCardProps) {
   const discount =

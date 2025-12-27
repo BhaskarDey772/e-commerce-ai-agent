@@ -1,46 +1,21 @@
-import { MessageSquare, Minimize2, Plus, Send, Sparkles, X } from "lucide-react";
+import axios from "axios";
+import { MessageSquare, Minimize2, Plus, Send, User, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ChatMessage, TypingIndicator } from "@/components/ChatMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { config } from "@/lib/config";
+import { chatAPI } from "@/lib/chat-api";
+import type {
+  ChatButtonProps,
+  ChatResponse,
+  ChatWidgetProps,
+  Conversation,
+  Message,
+} from "@/types";
 import { cn } from "@/lib/utils";
 
-interface Message {
-  id: string;
-  sender: "USER" | "AI";
-  content: string;
-  createdAt: string;
-}
-
-interface Conversation {
-  id: string;
-  sessionId: string | null;
-  createdAt: string;
-  updatedAt: string;
-  messageCount: number;
-  preview: string;
-}
-
-interface ChatResponse {
-  success: boolean;
-  data: {
-    reply: string;
-    sessionId: string;
-    conversationId: string;
-  };
-}
-
-interface ChatWidgetProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onMinimize: () => void;
-}
-
-// Module-level cache that persists across component mounts/unmounts
-// Only cleared on page reload
 const messagesCache = new Map<string, Message[]>();
 const sessionIdCache = new Map<string, string | null>();
 let conversationsLoaded = false;
@@ -64,98 +39,239 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const fetchMessages = useCallback(
+    async (conversationId: string) => {
+      // Check if messages are already cached
+      const cached = messagesCache.get(conversationId);
+      if (cached && cached.length > 0) {
+        setMessages(cached);
+        const cachedSessionId = sessionIdCache.get(conversationId);
+        if (cachedSessionId !== undefined) {
+          setSessionId(cachedSessionId);
+        }
+        return;
+      }
+
+      // Check if already loading this conversation
+      if (loadingMessages) {
+        return;
+      }
+
+      setLoadingMessages(true);
+      setMessages([]);
+      try {
+        const data = await chatAPI.getConversationById(conversationId);
+        console.log("Fetched conversation data:", data);
+        if (data.success && data.data) {
+          if (Array.isArray(data.data.messages)) {
+            messagesCache.set(conversationId, data.data.messages);
+            setMessages(data.data.messages);
+          } else {
+            console.warn("Messages is not an array:", data.data.messages);
+            setMessages([]);
+          }
+
+          if (data.data.sessionId !== undefined) {
+            sessionIdCache.set(conversationId, data.data.sessionId);
+            setSessionId(data.data.sessionId);
+          }
+        } else {
+          console.warn("Response not successful or missing data:", data);
+        }
+      } catch (error) {
+        if (!axios.isCancel(error)) {
+          console.error("Error fetching messages:", error);
+          if (axios.isAxiosError(error)) {
+            console.error("Axios error details:", {
+              status: error.response?.status,
+              statusText: error.response?.statusText,
+              data: error.response?.data,
+              message: error.message,
+            });
+          }
+          const errorMessage =
+            axios.isAxiosError(error) && error.response?.data
+              ? (error.response.data as { error?: { message?: string } })?.error?.message ||
+                "Failed to load messages"
+              : error instanceof Error
+                ? error.message
+                : "Failed to load messages";
+          toast.error(errorMessage);
+        } else {
+          console.log("Request was cancelled");
+        }
+      } finally {
+        setLoadingMessages(false);
+      }
+    },
+    [loadingMessages],
+  );
+
   const fetchAllConversations = useCallback(async () => {
-    // Only fetch if not already loaded
     if (conversationsLoaded) {
       setConversations(cachedConversations);
-      if (cachedConversations.length > 0 && !currentConversationId) {
-        setCurrentConversationId(cachedConversations[0].id);
+      if (Array.isArray(cachedConversations) && cachedConversations.length === 0) {
+        const newConvData = await chatAPI.createNewConversation();
+        if (newConvData.success) {
+          const newConversationId = newConvData.data.conversationId;
+          const newConversation: Conversation = {
+            id: newConversationId,
+            sessionId: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            messageCount: 0,
+            preview: "New chat",
+          };
+          cachedConversations = [newConversation];
+          setConversations(cachedConversations);
+          setCurrentConversationId(newConversationId);
+          setMessages([]);
+          messagesCache.set(newConversationId, []);
+          sessionIdCache.set(newConversationId, null);
+        }
+      } else if (cachedConversations.length > 0 && !currentConversationId) {
+        const firstConv = cachedConversations[0];
+        setCurrentConversationId(firstConv.id);
+        if (firstConv.messageCount > 0) {
+          const cached = messagesCache.get(firstConv.id);
+          if (cached) {
+            setMessages(cached);
+          } else {
+            await fetchMessages(firstConv.id);
+          }
+        } else {
+          setMessages([]);
+          messagesCache.set(firstConv.id, []);
+        }
       }
       return;
     }
 
     setLoadingConversations(true);
     try {
-      const res = await fetch(`${config.apiBaseUrl}/chat/conversations`);
-      const data = await res.json();
-      if (data.success) {
+      const data = await chatAPI.getConversations();
+      if (data.success && data.data && Array.isArray(data.data.conversations)) {
         cachedConversations = data.data.conversations;
         setConversations(cachedConversations);
         conversationsLoaded = true;
-        if (cachedConversations.length > 0 && !currentConversationId) {
-          setCurrentConversationId(cachedConversations[0].id);
+
+        if (cachedConversations.length === 0) {
+          const newConvData = await chatAPI.createNewConversation();
+          if (newConvData.success) {
+            const newConversationId = newConvData.data.conversationId;
+            const newConversation: Conversation = {
+              id: newConversationId,
+              sessionId: null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              messageCount: 0,
+              preview: "New chat",
+            };
+            cachedConversations = [newConversation];
+            setConversations(cachedConversations);
+            setCurrentConversationId(newConversationId);
+            setMessages([]);
+            messagesCache.set(newConversationId, []);
+            sessionIdCache.set(newConversationId, null);
+          }
+        } else if (
+          Array.isArray(cachedConversations) &&
+          cachedConversations.length > 0 &&
+          !currentConversationId
+        ) {
+          const firstConv = cachedConversations[0];
+          setCurrentConversationId(firstConv.id);
+          if (firstConv.messageCount > 0) {
+            const cached = messagesCache.get(firstConv.id);
+            if (cached) {
+              setMessages(cached);
+            } else {
+              await fetchMessages(firstConv.id);
+            }
+          } else {
+            setMessages([]);
+            messagesCache.set(firstConv.id, []);
+          }
         }
       }
     } catch (error) {
-      console.error("Error fetching conversations:", error);
-      toast.error("Failed to load conversations");
+      if (!axios.isCancel(error)) {
+        console.error("Error fetching conversations:", error);
+        toast.error("Failed to load conversations");
+      }
     } finally {
       setLoadingConversations(false);
     }
-  }, [currentConversationId]);
+  }, [currentConversationId, fetchMessages]);
 
   useEffect(() => {
     if (isOpen) {
       fetchAllConversations();
       inputRef.current?.focus();
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
     }
+
+    return () => {
+      document.body.style.overflow = "";
+      if (!isOpen) {
+        chatAPI.cancelAllRequests();
+      }
+    };
   }, [isOpen, fetchAllConversations]);
 
   useEffect(() => {
+    if (loading || loadingMessages) return;
+
     if (currentConversationId && isOpen) {
-      // Check if messages are already cached
       const cachedMessages = messagesCache.get(currentConversationId);
       const cachedSessionId = sessionIdCache.get(currentConversationId);
 
-      if (cachedMessages) {
-        // Use cached messages
-        setMessages(cachedMessages);
+      if (cachedMessages && cachedMessages.length > 0) {
+        const tempMessages = messages.filter((m) => m.id.startsWith("temp"));
+        if (tempMessages.length > 0) {
+          setMessages([...cachedMessages, ...tempMessages]);
+        } else {
+          setMessages(cachedMessages);
+        }
         if (cachedSessionId !== undefined) {
           setSessionId(cachedSessionId);
         }
       } else {
-        // Fetch messages if not cached
-        fetchMessages(currentConversationId);
+        const conversation = Array.isArray(conversations)
+          ? conversations.find((c) => c.id === currentConversationId)
+          : null;
+        if (conversation && conversation.messageCount > 0) {
+          fetchMessages(currentConversationId);
+        } else {
+          const tempMessages = messages.filter((m) => m.id.startsWith("temp"));
+          if (tempMessages.length === 0) {
+            setMessages([]);
+            messagesCache.set(currentConversationId, []);
+          }
+        }
+      }
+    } else if (!currentConversationId && isOpen) {
+      if (!loading) {
+        setMessages([]);
       }
     }
-  }, [currentConversationId, isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentConversationId, isOpen, conversations]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const fetchMessages = async (conversationId: string) => {
-    setLoadingMessages(true);
-    setMessages([]);
-    try {
-      const res = await fetch(`${config.apiBaseUrl}/chat/conversation/${conversationId}`);
-      const data = await res.json();
-      if (data.success) {
-        // Cache the messages
-        messagesCache.set(conversationId, data.data.messages);
-        setMessages(data.data.messages);
-
-        // Cache the sessionId
-        if (data.data.sessionId !== undefined) {
-          sessionIdCache.set(conversationId, data.data.sessionId);
-          setSessionId(data.data.sessionId);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      toast.error("Failed to load messages");
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
-
   const createNewConversation = async () => {
-    const emptyConversation = conversations.find((conv) => conv.messageCount === 0);
+    const emptyConversation = Array.isArray(conversations)
+      ? conversations.find((conv) => conv.messageCount === 0)
+      : null;
 
     if (emptyConversation) {
       setCurrentConversationId(emptyConversation.id);
       setMessages([]);
-      // Cache empty messages for this conversation
       messagesCache.set(emptyConversation.id, []);
       sessionIdCache.set(emptyConversation.id, null);
       setSessionId(null);
@@ -163,21 +279,15 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
     }
 
     try {
-      const res = await fetch(`${config.apiBaseUrl}/chat/conversation/new`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
+      const data = await chatAPI.createNewConversation();
       if (data.success) {
         const newConversationId = data.data.conversationId;
         setCurrentConversationId(newConversationId);
         setMessages([]);
         setSessionId(null);
-        // Cache empty messages for new conversation
         messagesCache.set(newConversationId, []);
         sessionIdCache.set(newConversationId, null);
 
-        // Add new conversation to the list without refetching
         const newConversation: Conversation = {
           id: newConversationId,
           sessionId: null,
@@ -190,7 +300,9 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
         setConversations(cachedConversations);
       }
     } catch (error) {
-      console.error("Error creating conversation:", error);
+      if (!axios.isCancel(error)) {
+        console.error("Error creating conversation:", error);
+      }
     }
   };
 
@@ -204,53 +316,49 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
     setLoading(true);
 
     const tempUserMessage: Message = {
-      id: `temp-${Date.now()}`,
+      id: `temp-user-${Date.now()}`,
       sender: "USER",
       content: userMessage,
       createdAt: new Date().toISOString(),
     };
+
     setMessages((prev) => [...prev, tempUserMessage]);
 
     try {
-      let conversationId = currentConversationId;
+      let conversationId = currentConversationId || null;
+
       if (!conversationId) {
-        const newConvRes = await fetch(`${config.apiBaseUrl}/chat/conversation/new`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-        const newConvData = await newConvRes.json();
-        if (newConvData.success) {
-          conversationId = newConvData.data.conversationId;
+        const existingConversation = Array.isArray(conversations)
+          ? conversations.find((conv) => conv.messageCount > 0)
+          : null;
+
+        if (existingConversation) {
+          conversationId = existingConversation.id;
+          const cachedMessages = messagesCache.get(conversationId);
+          if (cachedMessages && cachedMessages.length > 0) {
+            setMessages([...cachedMessages, tempUserMessage]);
+          } else {
+            await fetchMessages(conversationId);
+            setMessages((prev) => {
+              const withoutTemp = prev.filter((m) => !m.id.startsWith("temp"));
+              return [...withoutTemp, tempUserMessage];
+            });
+          }
           setCurrentConversationId(conversationId);
-          // Cache empty messages for new conversation
-          messagesCache.set(conversationId, []);
-          sessionIdCache.set(conversationId, null);
-          // Add to conversations list
-          const newConversation: Conversation = {
-            id: conversationId,
-            sessionId: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            messageCount: 0,
-            preview: "New chat",
-          };
-          cachedConversations = [newConversation, ...cachedConversations];
-          setConversations(cachedConversations);
-        } else {
-          throw new Error("Failed to create conversation");
         }
+      } else {
+        setMessages((prev) => {
+          if (!prev.some((m) => m.id === tempUserMessage.id)) {
+            return [...prev, tempUserMessage];
+          }
+          return prev;
+        });
       }
 
-      const res = await fetch(`${config.apiBaseUrl}/chat/message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage,
-          conversationId: conversationId,
-        }),
+      const data = await chatAPI.sendMessage({
+        message: userMessage,
+        conversationId: conversationId,
       });
-
-      const data: ChatResponse = await res.json();
 
       if (!data.success) {
         const errorMessage =
@@ -260,9 +368,33 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
         throw new Error(errorMessage);
       }
 
-      const finalConversationId = data.data.conversationId || conversationId;
+      const finalConversationId = data.data.conversationId;
       if (!finalConversationId) {
         throw new Error("No conversation ID available");
+      }
+
+      // Update conversation ID if it was created by the backend
+      if (finalConversationId !== conversationId) {
+        setCurrentConversationId(finalConversationId);
+        conversationId = finalConversationId;
+
+        // If this is a new conversation created by backend, add it to the list
+        const existingConv = Array.isArray(cachedConversations)
+          ? cachedConversations.find((c) => c.id === finalConversationId)
+          : null;
+
+        if (!existingConv) {
+          const newConversation: Conversation = {
+            id: finalConversationId,
+            sessionId: data.data.sessionId || null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            messageCount: 2,
+            preview: userMessage.substring(0, 50),
+          };
+          cachedConversations = [newConversation, ...cachedConversations];
+          setConversations([...cachedConversations]);
+        }
       }
 
       // Update sessionId cache
@@ -271,25 +403,57 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
         setSessionId(data.data.sessionId);
       }
 
-      // Update conversation ID if changed
-      if (data.data.conversationId && data.data.conversationId !== conversationId) {
-        setCurrentConversationId(data.data.conversationId);
+      // Parse the reply from the API response and add it directly
+      const aiReply: Message = {
+        id: `ai-${Date.now()}`,
+        sender: "AI",
+        content: data.data.reply,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Remove temp user message and add both real messages
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => !m.id.startsWith("temp"));
+        const updated = [
+          ...filtered,
+          {
+            ...tempUserMessage,
+            id: `user-${Date.now()}`,
+          },
+          aiReply,
+        ];
+
+        // Update cache
+        messagesCache.set(finalConversationId, updated);
+        return updated;
+      });
+
+      // Update conversation preview with first message if it's the first message
+      const currentConv = Array.isArray(cachedConversations)
+        ? cachedConversations.find((c) => c.id === finalConversationId)
+        : null;
+      const isFirstMessage = currentConv?.messageCount === 0;
+
+      // Update conversations list
+      if (Array.isArray(cachedConversations)) {
+        cachedConversations = cachedConversations.map((conv) => {
+          if (conv.id === finalConversationId) {
+            return {
+              ...conv,
+              messageCount: conv.messageCount + 2,
+              updatedAt: new Date().toISOString(),
+              preview: isFirstMessage ? userMessage.substring(0, 50) : conv.preview,
+            };
+          }
+          return conv;
+        });
+
+        // Sort by updatedAt descending
+        cachedConversations.sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        );
+        setConversations([...cachedConversations]);
       }
-
-      // Fetch fresh messages to get the complete conversation (this will update the cache)
-      await fetchMessages(finalConversationId);
-
-      // Update conversations list without full refetch
-      cachedConversations = cachedConversations.map((conv) =>
-        conv.id === finalConversationId
-          ? { ...conv, messageCount: conv.messageCount + 2, updatedAt: new Date().toISOString() }
-          : conv,
-      );
-      // Sort by updatedAt descending
-      cachedConversations.sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      );
-      setConversations([...cachedConversations]);
     } catch (error) {
       console.error("Error sending message:", error);
       setMessages((prev) => prev.filter((m) => !m.id.startsWith("temp")));
@@ -304,29 +468,35 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 w-[90vw] max-w-[400px] h-[85vh] max-h-[600px] glass-card rounded-xl flex flex-col overflow-hidden shadow-2xl border border-border/50 z-50 animate-fade-in">
+    <div className="fixed bottom-4 right-4 w-[90vw] max-w-[400px] h-[85vh] max-h-[600px] bg-card rounded-xl flex flex-col overflow-hidden shadow-2xl border border-border/50 z-50 animate-fade-in">
       {/* Header */}
-      <div className="p-4 border-b border-border/50 flex items-center justify-between bg-card">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-primary-foreground" />
+      <div className="px-3 py-2.5 bg-gradient-to-r from-primary/90 to-primary flex items-center justify-between text-primary-foreground">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30">
+            <User className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-sm">AI Assistant</h3>
-            <p className="text-xs text-muted-foreground">Ask me anything</p>
+            <h3 className="font-semibold text-sm text-white">Chat with us!</h3>
+            <p className="text-xs text-white/80">We typically reply in a few minutes</p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 text-white hover:bg-white/20"
             onClick={onMinimize}
             title="Minimize"
           >
             <Minimize2 className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Close">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white hover:bg-white/20"
+            onClick={onClose}
+            title="Close"
+          >
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -334,20 +504,20 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
 
       {/* Conversations List */}
       {loadingConversations ? (
-        <div className="px-4 py-2 border-b border-border/50 bg-secondary/30">
+        <div className="px-3 py-1.5 border-b border-border/50 bg-secondary/30">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <span className="text-xs text-muted-foreground">Loading conversations...</span>
           </div>
         </div>
       ) : conversations.length > 0 ? (
-        <div className="px-4 py-2 border-b border-border/50 bg-secondary/30">
-          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar">
+        <div className="px-3 py-1.5 border-b border-border/50 bg-secondary/30">
+          <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
             <Button
               onClick={createNewConversation}
               size="sm"
               variant="outline"
-              className="gap-1.5 flex-shrink-0"
+              className="gap-1 flex-shrink-0 h-7 text-xs"
               disabled={conversations.some((conv) => conv.messageCount === 0)}
             >
               <Plus className="w-3 h-3" />
@@ -358,7 +528,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
                 key={conv.id}
                 onClick={() => setCurrentConversationId(conv.id)}
                 className={cn(
-                  "flex-shrink-0 px-3 py-1.5 rounded-lg text-xs transition-all",
+                  "flex-shrink-0 px-2.5 py-1 rounded-lg text-xs transition-all h-7",
                   currentConversationId === conv.id
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary hover:bg-secondary/80",
@@ -372,24 +542,39 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
       ) : null}
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 px-3 py-2">
         {loadingMessages ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-8">
-            <div className="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <div className="flex flex-col items-center justify-center h-full text-center py-6">
+            <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
             <p className="text-sm text-muted-foreground">Loading messages...</p>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-8">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-3">
-              <Sparkles className="w-8 h-8 text-primary" />
+          <div className="flex flex-col items-center justify-center h-full text-center py-6 px-3">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-3 border-2 border-primary/20">
+              <User className="w-7 h-7 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold mb-1">How can I help you?</h3>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Ask about products, get recommendations, or find the best deals.
+            <h3 className="text-base font-semibold mb-1.5 text-foreground">Hi there! 👋</h3>
+            <p className="text-sm text-muted-foreground max-w-xs mb-3">
+              I'm here to help you find products, answer questions, or assist with anything you
+              need.
             </p>
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              <button
+                onClick={() => setInput("Show me best deals")}
+                className="px-2.5 py-1 text-xs rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
+              >
+                Best Deals
+              </button>
+              <button
+                onClick={() => setInput("What's your return policy?")}
+                className="px-2.5 py-1 text-xs rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
+              >
+                Return Policy
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
@@ -400,21 +585,21 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
       </ScrollArea>
 
       {/* Input */}
-      <form onSubmit={sendMessage} className="p-4 border-t border-border/50 bg-card">
-        <div className="flex gap-2">
+      <form onSubmit={sendMessage} className="px-3 py-2 border-t border-border/50 bg-card">
+        <div className="flex gap-1.5">
           <Input
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={isDataLoading ? "Loading..." : "Type your message..."}
             disabled={loading || isDataLoading}
-            className="flex-1 h-10 text-sm bg-secondary/50 border-border/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 h-9 text-sm bg-secondary/50 border-border/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <Button
             type="submit"
             disabled={loading || !input.trim() || isDataLoading}
             size="default"
-            className="px-4 glow-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 h-9 glow-hover disabled:opacity-50 disabled:cursor-not-allowed"
             title={isDataLoading ? "Please wait while data loads" : ""}
           >
             {loading ? (
@@ -425,18 +610,13 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
           </Button>
         </div>
         {isDataLoading && (
-          <p className="text-xs text-muted-foreground mt-2 text-center">
+          <p className="text-xs text-muted-foreground mt-1.5 text-center">
             Loading conversations and messages...
           </p>
         )}
       </form>
     </div>
   );
-}
-
-interface ChatButtonProps {
-  onClick: () => void;
-  unreadCount?: number;
 }
 
 export function ChatButton({ onClick, unreadCount }: ChatButtonProps) {

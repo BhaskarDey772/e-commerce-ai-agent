@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-import { config } from "./config";
+import { imageAPI } from "./image-api";
 
 /**
  * Get proxied image URL (server-side caching and HTTPS conversion)
@@ -17,19 +17,7 @@ export function getProxiedImageUrl(
   url: string | null | undefined,
   productId?: string | null,
 ): string {
-  if (!url) return "";
-  // If already using our proxy, return as is
-  if (url.includes("/api/images/proxy")) {
-    return url;
-  }
-  // If it's a relative URL or data URL, return as is
-  if (url.startsWith("/") || url.startsWith("data:") || url.startsWith("blob:")) {
-    return url;
-  }
-  // Encode the URL for use in query parameter
-  const encodedUrl = encodeURIComponent(url);
-  const productParam = productId ? `&productId=${productId}` : "";
-  return `${config.apiBaseUrl}/api/images/proxy?url=${encodedUrl}${productParam}`;
+  return imageAPI.getProxiedImageUrl(url, productId);
 }
 
 /**

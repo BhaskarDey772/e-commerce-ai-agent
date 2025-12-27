@@ -9,12 +9,14 @@ datasource db {
 
 model Session {
   id        String   @id @default(uuid())
+  guestId   String?  @unique // Guest ID from cookies
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   conversations Conversation[]
 
   @@index([createdAt])
+  @@index([guestId])
 }
 
 model Conversation {

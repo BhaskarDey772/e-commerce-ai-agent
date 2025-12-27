@@ -14,7 +14,6 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
-// Test database connection on startup
 export async function testDatabaseConnection() {
   try {
     await prisma.$connect();

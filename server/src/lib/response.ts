@@ -1,27 +1,8 @@
 import { env } from "@/env";
-import type { AppError } from "@/lib/error";
+import type { AppError } from "./error";
+import type { ErrorResponse, SuccessResponse } from "@/types";
 
-export interface ErrorResponse {
-  success: false;
-  error: {
-    message: string;
-    statusCode: number;
-    details?: unknown;
-    timestamp: string;
-  };
-}
-
-export interface SuccessResponse<T = unknown> {
-  success: true;
-  data: T;
-  metadata?: {
-    count?: number;
-    page?: number;
-    limit?: number;
-    total?: number;
-    [key: string]: unknown;
-  };
-}
+export type { ErrorResponse, SuccessResponse };
 
 export function errorResponse(error: AppError): ErrorResponse {
   const response: ErrorResponse = {
@@ -33,7 +14,6 @@ export function errorResponse(error: AppError): ErrorResponse {
     },
   };
 
-  // Include details if available and not in production
   if (error.details && env.NODE_ENV !== "production") {
     response.error.details = error.details;
   }

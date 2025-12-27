@@ -1,44 +1,11 @@
-/**
- * Query Builder Tool for AI
- * Parses natural language queries and builds product search queries
- */
-
 import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
-import { prisma } from "@/lib/prisma";
-import { generateEmbedding } from "../utils/embeddings";
+import { prisma } from "@/lib";
+import type { ProductQuery, ProductSearchResult } from "@/types";
+import { QUERY_BUILDER_SYSTEM_PROMPT } from "@/prompts/query-builder-prompt";
+import { generateEmbedding } from "./embeddings";
 import { normalizeQuery } from "./query-normalizer";
 
-export interface ProductQuery {
-  category?: string;
-  brand?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  minRating?: number;
-  searchText?: string;
-  limit?: number;
-  sortBy?: "price_asc" | "price_desc" | "rating_desc" | "name_asc" | "name_desc" | "newest";
-}
-
-export interface ProductSearchResult {
-  id: string;
-  name: string;
-  productUrl?: string;
-  category: string;
-  price: number;
-  originalPrice?: number;
-  image?: string;
-  images?: string[];
-  description?: string;
-  rating?: number;
-  brand?: string;
-  similarity?: number;
-}
-
-/**
- * Build a product query from natural language using LLM
- * Converts user message to structured JSON query
- */
 async function buildProductQueryWithLLM(userQuery: string): Promise<ProductQuery> {
   const queryModel = openai("gpt-4o-mini");
   const normalizedQuery = normalizeQuery(userQuery);
@@ -48,43 +15,7 @@ async function buildProductQueryWithLLM(userQuery: string): Promise<ProductQuery
     messages: [
       {
         role: "system",
-        content: `You are a query builder that converts natural language product search requests into structured JSON queries.
-
-IMPORTANT - TYPO HANDLING:
-- Users may have typos in their queries. Understand the INTENT, not just exact spelling.
-- Common typos: "jewellary/jewelry" = jewellery, "moblie" = mobile, "shooes" = shoes, "laptoop" = laptop
-- "jewellary", "jewelry", "jewlery", "jewellry" all mean "jewellery"
-- "moblie", "phne" mean "mobile" or "phone"
-- "shooes", "shose" mean "shoes" or "footwear"
-- Always interpret the user's intent correctly despite spelling mistakes
-
-Product Schema:
-- category: string (optional) - e.g., "laptop", "mobile", "electronics", "clothing", "footwear", "watch", "camera", "tv", "headphone", "furniture", "jewellery"
-- brand: string (optional) - e.g., "Samsung", "Apple", "Nike", "HP", "Dell"
-- minPrice: number (optional) - minimum price in rupees
-- maxPrice: number (optional) - maximum price in rupees
-- minRating: number (optional) - minimum rating (0-5)
-- searchText: string (optional) - text to search in product name or description
-- sortBy: "price_asc" | "price_desc" | "rating_desc" | "name_asc" | "name_desc" | "newest" (default: "newest")
-
-Rules:
-- Extract price mentions (e.g., "under 20k" = maxPrice: 20000, "above 5k" = minPrice: 5000, "under 1000" = maxPrice: 1000)
-- Extract category from keywords, handling typos intelligently (e.g., "jewellary" = "jewellery", "moblie" = "mobile", "shooes" = "footwear")
-- Extract brand names if mentioned
-- Set minRating to 4.0 if user asks for "best", "top", or "high rating"
-- Set sortBy to "rating_desc" for best/top products, "price_asc" for cheapest, "price_desc" for most expensive
-- For price-based queries (e.g., "under 1000"), set maxPrice appropriately
-- Return ONLY valid JSON, no explanations
-
-Examples:
-User: "find me laptop under 20k"
-Response: {"category": "laptop", "maxPrice": 20000, "sortBy": "newest"}
-
-User: "find me good jewellary under 1000 rupees"
-Response: {"category": "jewellery", "maxPrice": 1000, "minRating": 4.0, "sortBy": "rating_desc"}
-
-User: "show me moblie phones"
-Response: {"category": "mobile", "sortBy": "newest"}`,
+        content: QUERY_BUILDER_SYSTEM_PROMPT,
       },
       {
         role: "user",
@@ -94,14 +25,37 @@ Response: {"category": "mobile", "sortBy": "newest"}`,
   });
 
   try {
-    const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+    let jsonText = result.text.trim();
+
+    // Remove markdown code blocks if present
+    jsonText = jsonText.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+
+    // Find JSON object - use non-greedy match to get first complete object
+    const jsonMatch = jsonText.match(/\{[\s\S]*?\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        limit: 20,
-        sortBy: "newest",
-        ...parsed,
-      };
+      let jsonStr = jsonMatch[0];
+
+      // Try to fix common JSON issues
+      // Remove trailing commas before closing braces/brackets
+      jsonStr = jsonStr.replace(/,(\s*[}\]])/g, "$1");
+
+      // Fix unquoted keys
+      jsonStr = jsonStr.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+
+      // Try parsing
+      try {
+        const parsed = JSON.parse(jsonStr);
+        // Validate parsed object has expected structure
+        if (typeof parsed === "object" && parsed !== null) {
+          return {
+            limit: 20,
+            sortBy: "newest",
+            ...parsed,
+          };
+        }
+      } catch (parseError) {
+        console.error("Error parsing JSON, attempting fallback:", parseError);
+      }
     }
   } catch (error) {
     console.error("Error parsing LLM query response:", error);
@@ -111,7 +65,6 @@ Response: {"category": "mobile", "sortBy": "newest"}`,
 }
 
 function buildProductQueryRegex(userQuery: string): ProductQuery {
-  // Extract common patterns from user query
   const query: ProductQuery = {
     limit: 20,
     sortBy: "newest",
@@ -119,7 +72,6 @@ function buildProductQueryRegex(userQuery: string): ProductQuery {
 
   const lowerQuery = userQuery.toLowerCase();
 
-  // Extract price range (e.g., "under 20k", "below 5000", "between 10k and 20k")
   const pricePatterns = [
     { pattern: /under\s+(\d+)\s*k/i, multiplier: 1000 },
     { pattern: /below\s+(\d+)\s*k/i, multiplier: 1000 },
@@ -141,7 +93,6 @@ function buildProductQueryRegex(userQuery: string): ProductQuery {
     }
   }
 
-  // Extract minimum price
   const minPricePatterns = [
     { pattern: /above\s+(\d+)\s*k/i, multiplier: 1000 },
     { pattern: /more\s+than\s+(\d+)\s*k/i, multiplier: 1000 },
@@ -157,14 +108,12 @@ function buildProductQueryRegex(userQuery: string): ProductQuery {
     }
   }
 
-  // Extract price range
   const rangeMatch = userQuery.match(/(\d+)\s*k?\s*to\s*(\d+)\s*k/i);
   if (rangeMatch && rangeMatch[1] && rangeMatch[2]) {
     query.minPrice = parseInt(rangeMatch[1], 10) * (rangeMatch[1].includes("k") ? 1000 : 1);
     query.maxPrice = parseInt(rangeMatch[2], 10) * (rangeMatch[2].includes("k") ? 1000 : 1);
   }
 
-  // Extract category keywords
   const categoryKeywords: Record<string, string[]> = {
     laptop: ["laptop", "notebook", "laptops"],
     mobile: ["mobile", "phone", "smartphone", "phones"],
@@ -185,7 +134,6 @@ function buildProductQueryRegex(userQuery: string): ProductQuery {
     }
   }
 
-  // Extract brand
   const commonBrands = [
     "samsung",
     "apple",
@@ -217,7 +165,6 @@ function buildProductQueryRegex(userQuery: string): ProductQuery {
     }
   }
 
-  // Extract rating requirements
   if (
     lowerQuery.includes("best") ||
     lowerQuery.includes("top") ||
@@ -227,38 +174,28 @@ function buildProductQueryRegex(userQuery: string): ProductQuery {
     query.sortBy = "rating_desc";
   }
 
-  // Extract search text (remove price/category/brand keywords)
   let searchText = userQuery;
-  // Remove price patterns
+
+  // Remove price patterns but keep the rest
   searchText = searchText.replace(/\d+\s*k?\s*(rupees|rs)?/gi, "");
   searchText = searchText.replace(/under|below|less\s+than|above|more\s+than/gi, "");
   searchText = searchText.replace(/best|top|high\s+rating/gi, "");
-  searchText = searchText.trim();
 
-  if (searchText.length > 3) {
+  // Preserve gender and descriptive terms
+  // Keep words like: man, men, woman, women, boy, girl, kids, children, etc.
+  // Also keep "for" when followed by these terms
+  searchText = searchText.replace(/\s+/g, " ").trim();
+
+  if (searchText.length > 2) {
     query.searchText = searchText;
   }
 
   return query;
 }
 
-/**
- * Build a product query from natural language
- * Uses LLM first, falls back to regex if needed
- */
-export async function buildProductQuery(userQuery: string): Promise<ProductQuery> {
-  return await buildProductQueryWithLLM(userQuery);
-}
-
-/**
- * Execute product query and return results
- */
-export async function executeProductQuery(query: ProductQuery): Promise<ProductSearchResult[]> {
-  const limit = query.limit || 20;
-
-  // Build WHERE conditions
+function buildWhereClause(query: ProductQuery): { clause: string; params: unknown[] } {
   const conditions: string[] = [];
-  const params: any[] = [];
+  const params: unknown[] = [];
   let paramIndex = 1;
 
   if (query.category) {
@@ -297,33 +234,70 @@ export async function executeProductQuery(query: ProductQuery): Promise<ProductS
     paramIndex++;
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return {
+    clause: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "",
+    params,
+  };
+}
 
-  // Build ORDER BY clause
-  let orderBy = "";
-  switch (query.sortBy) {
-    case "price_asc":
-      orderBy = `ORDER BY "discountedPrice" ASC NULLS LAST`;
-      break;
-    case "price_desc":
-      orderBy = `ORDER BY "discountedPrice" DESC NULLS LAST`;
-      break;
-    case "rating_desc":
-      orderBy = `ORDER BY COALESCE("productRating", "overallRating", 0) DESC NULLS LAST`;
-      break;
-    case "name_asc":
-      orderBy = `ORDER BY "productName" ASC`;
-      break;
-    case "name_desc":
-      orderBy = `ORDER BY "productName" DESC`;
-      break;
-    case "newest":
-    default:
-      orderBy = `ORDER BY "createdAt" DESC`;
-      break;
+function buildOrderBy(sortBy?: string): string {
+  const orderByMap: Record<string, string> = {
+    price_asc: `ORDER BY "discountedPrice" ASC NULLS LAST`,
+    price_desc: `ORDER BY "discountedPrice" DESC NULLS LAST`,
+    rating_desc: `ORDER BY COALESCE("productRating", "overallRating", 0) DESC NULLS LAST`,
+    name_asc: `ORDER BY "productName" ASC`,
+    name_desc: `ORDER BY "productName" DESC`,
+    newest: `ORDER BY "createdAt" DESC`,
+  };
+
+  const defaultOrder = `ORDER BY "createdAt" DESC`;
+  return orderByMap[sortBy || "newest"] ?? defaultOrder;
+}
+
+function formatProductResult(product: {
+  id: string;
+  uniqId: string;
+  productName: string;
+  category: string;
+  discountedPrice: number | null;
+  retailPrice: number | null;
+  image: string | null;
+  images: string | null;
+  description: string | null;
+  productUrl: string | null;
+  productRating: number | null;
+  overallRating: number | null;
+  brand: string | null;
+}): ProductSearchResult {
+  let images: string[] = [];
+  if (product.images) {
+    try {
+      images = JSON.parse(product.images);
+    } catch {
+      images = [];
+    }
   }
 
-  // Execute query
+  return {
+    id: product.id,
+    name: product.productName,
+    category: product.category,
+    price: product.discountedPrice || product.retailPrice || 0,
+    originalPrice: product.retailPrice || undefined,
+    image: product.image || images[0] || undefined,
+    images,
+    description: product.description || undefined,
+    productUrl: product.productUrl || undefined,
+    rating: product.productRating || product.overallRating || undefined,
+    brand: product.brand || undefined,
+  };
+}
+
+export async function executeProductQuery(query: ProductQuery): Promise<ProductSearchResult[]> {
+  const limit = query.limit || 20;
+  const { clause: whereClause, params: whereParams } = buildWhereClause(query);
+  const orderBy = buildOrderBy(query.sortBy);
+
   const productsQuery = `
     SELECT 
       id, "uniqId", "productName", category, "discountedPrice", "retailPrice",
@@ -331,9 +305,9 @@ export async function executeProductQuery(query: ProductQuery): Promise<ProductS
     FROM "Product"
     ${whereClause}
     ${orderBy}
-    LIMIT $${paramIndex}
+    LIMIT $${whereParams.length + 1}
   `;
-  params.push(limit);
+  whereParams.push(limit);
 
   const products = await prisma.$queryRawUnsafe<
     Array<{
@@ -351,66 +325,11 @@ export async function executeProductQuery(query: ProductQuery): Promise<ProductS
       overallRating: number | null;
       brand: string | null;
     }>
-  >(productsQuery, ...params);
+  >(productsQuery, ...whereParams);
 
-  // Format results
-  return products.map((product) => {
-    let images: string[] = [];
-    if (product.images) {
-      try {
-        images = JSON.parse(product.images);
-      } catch {
-        images = [];
-      }
-    }
-
-    return {
-      id: product.id,
-      name: product.productName,
-      category: product.category,
-      price: product.discountedPrice || product.retailPrice || 0,
-      originalPrice: product.retailPrice || undefined,
-      image: product.image || images[0] || undefined,
-      images,
-      description: product.description || undefined,
-      productUrl: product.productUrl || undefined,
-      rating: product.productRating || product.overallRating || undefined,
-      brand: product.brand || undefined,
-    };
-  });
+  return products.map(formatProductResult);
 }
 
-/**
- * Create text representation of products for LLM analysis
- */
-function createProductsText(products: ProductSearchResult[]): string {
-  if (products.length === 0) {
-    return "No products found matching the criteria.";
-  }
-
-  return products
-    .map((product, index) => {
-      const parts: (string | null)[] = [
-        `${index + 1}. ${product.name}`,
-        product.brand ? `Brand: ${product.brand}` : null,
-        `Price: ₹${product.price.toLocaleString()}${product.originalPrice && product.originalPrice > product.price ? ` (Original: ₹${product.originalPrice.toLocaleString()})` : ""}`,
-        product.rating ? `Rating: ${product.rating}/5` : null,
-        `Category: ${product.category}`,
-        product.description
-          ? `Description: ${product.description.substring(0, 200)}${product.description.length > 200 ? "..." : ""}`
-          : null,
-      ];
-
-      const filteredParts = parts.filter((part): part is string => part !== null);
-
-      return filteredParts.join("\n");
-    })
-    .join("\n\n");
-}
-
-/**
- * Calculate cosine similarity between two embeddings
- */
 function cosineSimilarity(a: number[], b: number[]): number {
   if (!a || !b || a.length !== b.length) return 0;
 
@@ -430,16 +349,6 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return denominator === 0 ? 0 : dotProduct / denominator;
 }
 
-/**
- * Search products and prepare context for LLM
- * Flow:
- * 1. Call LLM to convert user message to JSON query
- * 2. Generate Prisma query from JSON
- * 3. Fetch products from DB (fetch more for filtering)
- * 4. Embed product descriptions + user message
- * 5. Compare embeddings with user request using cosine similarity
- * 6. Return filtered and ranked products
- */
 export async function searchProductsForLLM(
   userQuery: string,
   limit: number = 7,
@@ -454,14 +363,12 @@ export async function searchProductsForLLM(
     category: string;
     rating: number | null;
     description: string | null;
+    image: string | null;
     productUrl: string | null;
   }[];
 }> {
-  // Step 1: Normalize and convert user message to JSON query
   const normalizedQuery = normalizeQuery(userQuery);
-  const structuredQuery = await buildProductQuery(normalizedQuery);
-
-  // Step 2: Generate Prisma query from JSON and fetch products (fetch more for filtering)
+  const structuredQuery = await buildProductQueryWithLLM(normalizedQuery);
   const products = await executeProductQuery({ ...structuredQuery, limit: limit * 2 });
 
   if (products.length === 0) {
@@ -472,13 +379,10 @@ export async function searchProductsForLLM(
     };
   }
 
-  // Step 3: Embed normalized user query
   const userQueryEmbedding = await generateEmbedding(normalizedQuery);
 
-  // Step 4: Embed product descriptions and calculate similarity
   const productsWithSimilarity = await Promise.all(
     products.map(async (product) => {
-      // Create text representation for embedding
       const productText = [
         product.name,
         product.brand || "",
@@ -489,10 +393,7 @@ export async function searchProductsForLLM(
         .filter(Boolean)
         .join(" ");
 
-      // Generate embedding for product
       const productEmbedding = await generateEmbedding(productText);
-
-      // Calculate similarity
       const similarity = cosineSimilarity(userQueryEmbedding, productEmbedding);
 
       return {
@@ -502,12 +403,10 @@ export async function searchProductsForLLM(
     }),
   );
 
-  // Step 5: Sort by similarity and take top results
   const rankedProducts = productsWithSimilarity
     .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
     .slice(0, limit);
 
-  // Step 6: Return response
   return {
     type: "product_response",
     summary:
@@ -520,6 +419,7 @@ export async function searchProductsForLLM(
       price: p.price,
       brand: p.brand ?? null,
       category: p.category,
+      image: p.image ?? null,
       rating: p.rating ?? null,
       description: p.description ?? null,
       productUrl: p.productUrl ?? null,
@@ -527,13 +427,10 @@ export async function searchProductsForLLM(
   };
 }
 
-/**
- * Search products (simple version for API endpoints)
- */
 export async function searchProducts(
   userQuery: string,
   limit: number = 20,
 ): Promise<ProductSearchResult[]> {
-  const structuredQuery = await buildProductQuery(userQuery);
+  const structuredQuery = await buildProductQueryWithLLM(userQuery);
   return await executeProductQuery({ ...structuredQuery, limit });
 }

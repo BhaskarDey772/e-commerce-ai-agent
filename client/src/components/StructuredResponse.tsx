@@ -1,3 +1,4 @@
+import axios from "axios";
 import {
   AlertCircle,
   ChevronDown,
@@ -11,69 +12,17 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { config } from "@/lib/config";
-
-// New format: { message: string, data: object | null }
-interface NewResponseFormat {
-  message: string;
-  data: {
-    products?: Array<{
-      id: string | number;
-      name: string;
-      price: number;
-      brand: string | null;
-      category: string;
-      rating: number | null;
-      productUrl?: string | null;
-    }>;
-  } | null;
-}
-
-// Old format (for backward compatibility)
-interface ProductResponse {
-  type: "product_response";
-  summary: string;
-  products: Array<{
-    id: string | number;
-    name: string;
-    price: number;
-    brand: string | null;
-    category: string;
-    rating: number | null;
-    productUrl?: string | null;
-  }>;
-  message: string;
-}
-
-interface PolicyResponse {
-  type: "policy_response";
-  answer: string;
-  message: string;
-}
-
-interface RefusalResponse {
-  type: "refusal";
-  reason: string;
-  message: string;
-}
-
-type StructuredResponse = NewResponseFormat | ProductResponse | PolicyResponse | RefusalResponse;
-
-interface StructuredResponseProps {
-  response: StructuredResponse;
-}
-
-interface ProductListProps {
-  products: Array<{
-    id: string | number;
-    name: string;
-    price: number;
-    brand: string | null;
-    category: string;
-    rating: number | null;
-    productUrl?: string | null;
-  }>;
-}
+import { productsAPI } from "@/lib/products-api";
+import type {
+  NewResponseFormat,
+  ParsedMessageProps,
+  PolicyResponse,
+  ProductListProps,
+  ProductResponse,
+  RefusalResponse,
+  StructuredResponse,
+  StructuredResponseProps,
+} from "@/types";
 
 function ProductList({ products }: ProductListProps) {
   const INITIAL_PRODUCTS_TO_SHOW = 3;
@@ -136,8 +85,7 @@ function ProductList({ products }: ProductListProps) {
                     className="h-6 text-[10px] px-2 cursor-pointer"
                     onClick={async () => {
                       try {
-                        const res = await fetch(`${config.apiBaseUrl}/products/${product.id}`);
-                        const data = await res.json();
+                        const data = await productsAPI.getProductById(String(product.id));
                         if (data.success && data.data.productUrl) {
                           window.open(data.data.productUrl, "_blank");
                         } else {
@@ -146,7 +94,9 @@ function ProductList({ products }: ProductListProps) {
                           );
                         }
                       } catch (error) {
-                        console.error("Error fetching product:", error);
+                        if (!axios.isCancel(error)) {
+                          console.error("Error fetching product:", error);
+                        }
                       }
                     }}
                   >
@@ -523,10 +473,6 @@ export function StructuredResponse({ response }: StructuredResponseProps) {
 
   // Fallback for unknown types
   return <div className="text-sm text-muted-foreground">{JSON.stringify(response, null, 2)}</div>;
-}
-
-interface ParsedMessageProps {
-  content: string;
 }
 
 export function ParsedMessage({ content }: ParsedMessageProps) {

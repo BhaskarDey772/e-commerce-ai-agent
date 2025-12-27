@@ -1,21 +1,12 @@
-/**
- * Product caching utilities using Redis
- */
+import { redis } from "@/lib";
 
-import { redis } from "@/lib/redis";
-
-// Cache TTL: 5 minutes (in seconds)
 const PRODUCT_CACHE_TTL = 5 * 60;
 
-// Cache key generators
 const PRODUCTS_LIST_KEY = (params: string) => `products:list:${params}`;
 const PRODUCT_DETAIL_KEY = (id: string) => `product:detail:${id}`;
 const CATEGORIES_KEY = "products:categories";
 const BRANDS_KEY = "products:brands";
 
-/**
- * Generate cache key from query parameters
- */
 function generateCacheKey(queryParams: Record<string, any>): string {
   const sortedParams = Object.keys(queryParams)
     .sort()
@@ -24,9 +15,6 @@ function generateCacheKey(queryParams: Record<string, any>): string {
   return sortedParams;
 }
 
-/**
- * Get cached products list
- */
 export async function getCachedProducts(queryParams: Record<string, any>) {
   const cacheKey = generateCacheKey(queryParams);
   const key = PRODUCTS_LIST_KEY(cacheKey);
@@ -43,9 +31,6 @@ export async function getCachedProducts(queryParams: Record<string, any>) {
   return null;
 }
 
-/**
- * Cache products list
- */
 export async function setCachedProducts(queryParams: Record<string, any>, data: any) {
   const cacheKey = generateCacheKey(queryParams);
   const key = PRODUCTS_LIST_KEY(cacheKey);
@@ -57,9 +42,6 @@ export async function setCachedProducts(queryParams: Record<string, any>, data: 
   }
 }
 
-/**
- * Get cached product detail
- */
 export async function getCachedProductDetail(id: string) {
   const key = PRODUCT_DETAIL_KEY(id);
 
@@ -75,9 +57,6 @@ export async function getCachedProductDetail(id: string) {
   return null;
 }
 
-/**
- * Cache product detail
- */
 export async function setCachedProductDetail(id: string, data: any) {
   const key = PRODUCT_DETAIL_KEY(id);
 
@@ -88,9 +67,6 @@ export async function setCachedProductDetail(id: string, data: any) {
   }
 }
 
-/**
- * Get cached categories
- */
 export async function getCachedCategories() {
   try {
     const cached = await redis.get(CATEGORIES_KEY);
@@ -104,9 +80,6 @@ export async function getCachedCategories() {
   return null;
 }
 
-/**
- * Cache categories (stores the full response structure)
- */
 export async function setCachedCategories(response: any) {
   try {
     await redis.setex(CATEGORIES_KEY, PRODUCT_CACHE_TTL, JSON.stringify(response));
@@ -115,9 +88,6 @@ export async function setCachedCategories(response: any) {
   }
 }
 
-/**
- * Get cached brands
- */
 export async function getCachedBrands() {
   try {
     const cached = await redis.get(BRANDS_KEY);
@@ -131,9 +101,6 @@ export async function getCachedBrands() {
   return null;
 }
 
-/**
- * Cache brands (stores the full response structure)
- */
 export async function setCachedBrands(response: any) {
   try {
     await redis.setex(BRANDS_KEY, PRODUCT_CACHE_TTL, JSON.stringify(response));
@@ -142,9 +109,6 @@ export async function setCachedBrands(response: any) {
   }
 }
 
-/**
- * Invalidate product caches (call when products are updated)
- */
 export async function invalidateProductCache() {
   try {
     const keys = await redis.keys("products:*");

@@ -1,17 +1,10 @@
-/**
- * Query Normalizer
- * Handles typos, variations, and normalizes user queries for better understanding
- */
-
 const typoCorrections: Record<string, string> = {
-  // Common spelling variations
   jewellary: "jewellery",
   jewelry: "jewellery",
   jewlery: "jewellery",
   jewellry: "jewellery",
   jewlry: "jewellery",
 
-  // Other common typos
   laptoop: "laptop",
   moblie: "mobile",
   phne: "phone",
@@ -26,7 +19,6 @@ const typoCorrections: Record<string, string> = {
   tv: "television",
   tvs: "televisions",
 
-  // Category variations
   cloths: "clothing",
   clothings: "clothing",
   footware: "footwear",
@@ -35,7 +27,6 @@ const typoCorrections: Record<string, string> = {
 };
 
 const categoryMappings: Record<string, string> = {
-  // Jewellery variations
   jewellery: "jewellery",
   jewelry: "jewellery",
   jewellary: "jewellery",
@@ -43,7 +34,6 @@ const categoryMappings: Record<string, string> = {
   jewellry: "jewellery",
   jewlry: "jewellery",
 
-  // Electronics
   laptop: "laptop",
   laptoop: "laptop",
   computer: "laptop",
@@ -54,7 +44,6 @@ const categoryMappings: Record<string, string> = {
   phne: "mobile",
   smartphone: "mobile",
 
-  // Footwear
   shoes: "footwear",
   shooes: "footwear",
   shose: "footwear",
@@ -62,13 +51,11 @@ const categoryMappings: Record<string, string> = {
   boots: "footwear",
   sandals: "footwear",
 
-  // Watches
   watch: "watch",
   watchs: "watch",
   watches: "watch",
   wristwatch: "watch",
 
-  // Audio
   headphone: "headphone",
   headfone: "headphone",
   headphones: "headphone",
@@ -78,42 +65,32 @@ const categoryMappings: Record<string, string> = {
   earfone: "headphone",
   earfones: "headphone",
 
-  // Camera
   camera: "camera",
   camra: "camera",
   cam: "camera",
 
-  // TV
   tv: "tv",
   television: "tv",
   tvs: "tv",
   televisions: "tv",
 
-  // Clothing
   clothing: "clothing",
   cloths: "clothing",
   clothings: "clothing",
   clothes: "clothing",
 
-  // Footwear
   footwear: "footwear",
   footware: "footwear",
 };
 
-/**
- * Normalize user query by fixing common typos and variations
- */
 export function normalizeQuery(query: string): string {
   let normalized = query.toLowerCase().trim();
 
-  // Fix common typos word by word
   const words = normalized.split(/\s+/);
   const correctedWords = words.map((word) => {
-    // Remove punctuation for matching
     const cleanWord = word.replace(/[.,!?;:]/g, "");
     const corrected = typoCorrections[cleanWord] || cleanWord;
 
-    // Preserve original punctuation
     if (word !== cleanWord) {
       return word.replace(cleanWord, corrected);
     }
@@ -125,9 +102,6 @@ export function normalizeQuery(query: string): string {
   return normalized;
 }
 
-/**
- * Extract and normalize category from query
- */
 export function extractCategory(query: string): string | undefined {
   const normalized = normalizeQuery(query);
   const words = normalized.split(/\s+/);

@@ -22,7 +22,6 @@ if (process.env.NODE_ENV !== "production") {
   globalForRedis.redis = redis;
 }
 
-// Handle connection events
 redis.on("connect", () => {
   console.log("🔌 Redis connecting...");
 });
@@ -39,7 +38,6 @@ redis.on("close", () => {
   console.log("🔌 Redis connection closed");
 });
 
-// Test Redis connection
 export async function testRedisConnection() {
   try {
     await redis.ping();

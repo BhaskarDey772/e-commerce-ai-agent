@@ -22,48 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import axios from "axios";
+import type { Product, ProductsResponse } from "@/types";
 import { useDebounce } from "@/hooks/use-debounce";
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number | null;
-  originalPrice?: number | null;
-  image?: string;
-  images?: string[];
-  description?: string;
-  rating?: number | null;
-  brand?: string;
-  specifications?: Record<string, unknown>;
-  productUrl?: string;
-  productRating?: number | null;
-  overallRating?: number | null;
-}
-
-interface ProductsResponse {
-  success: boolean;
-  data: {
-    products: Product[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
-    filters: {
-      category?: string;
-      brand?: string;
-      minPrice?: number;
-      maxPrice?: number;
-      minRating?: number;
-      search?: string;
-      sortBy: string;
-    };
-  };
-}
-
-import { config } from "@/lib/config";
+import { productsAPI } from "@/lib/products-api";
 import { getProxiedImageUrl } from "@/lib/utils";
 
 export default function ProductsPage() {
@@ -92,17 +54,105 @@ export default function ProductsPage() {
   const [minRating, setMinRating] = useState("");
   const [sortBy, setSortBy] = useState("newest");
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const data = await productsAPI.getCategories();
+      if (data.success) {
+        setCategories(data.data.categories);
+      }
+    } catch (error) {
+      if (!axios.isCancel(error)) {
+        console.error("Error fetching categories:", error);
+      }
+    }
+  }, []);
+
+  const fetchBrands = useCallback(async () => {
+    try {
+      const data = await productsAPI.getBrands();
+      if (data.success) {
+        setBrands(data.data.brands);
+      }
+    } catch (error) {
+      if (!axios.isCancel(error)) {
+        console.error("Error fetching brands:", error);
+      }
+    }
+  }, []);
+
+  const fetchProducts = useCallback(
+    async (pageNum: number = 1, reset: boolean = false) => {
+      if (reset) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      try {
+        const params: Record<string, string> = {
+          page: pageNum.toString(),
+          limit: "50",
+          sortBy,
+        };
+
+        if (debouncedSearch) params.search = debouncedSearch;
+        if (selectedCategory) params.category = selectedCategory;
+        if (selectedBrand) params.brand = selectedBrand;
+        if (minPrice) params.minPrice = minPrice;
+        if (maxPrice) params.maxPrice = maxPrice;
+        if (minRating) params.minRating = minRating;
+
+        const data = await productsAPI.getProducts(params);
+
+        if (data.success) {
+          const newProducts = data.data.products;
+          if (reset) {
+            setProducts(newProducts);
+          } else {
+            setProducts((prev) => [...prev, ...newProducts]);
+          }
+
+          const totalPages = data.data.pagination.totalPages;
+          setHasMore(pageNum < totalPages);
+          setPage(pageNum);
+        }
+      } catch (error) {
+        if (!axios.isCancel(error)) {
+          console.error("Error fetching products:", error);
+        }
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [selectedCategory, selectedBrand, minPrice, maxPrice, minRating, sortBy, debouncedSearch],
+  );
+
+  const loadMoreProducts = useCallback(() => {
+    if (!loadingMore && hasMore) {
+      fetchProducts(page + 1, false);
+    }
+  }, [page, loadingMore, hasMore, fetchProducts]);
+
   useEffect(() => {
     fetchCategories();
     fetchBrands();
-  }, []);
+
+    return () => {
+      productsAPI.cancelAllRequests();
+    };
+  }, [fetchCategories, fetchBrands]);
 
   useEffect(() => {
     setProducts([]);
     setPage(1);
     setHasMore(true);
     fetchProducts(1, true);
-  }, [selectedCategory, selectedBrand, minPrice, maxPrice, minRating, sortBy, debouncedSearch]);
+
+    return () => {
+      productsAPI.cancelRequest("products");
+    };
+  }, [fetchProducts]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -124,93 +174,20 @@ export default function ProductsPage() {
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasMore, loading, loadingMore]);
-
-  const fetchCategories = async () => {
-    try {
-      const res = await fetch(`${config.apiBaseUrl}/products/categories/list`);
-      const data = await res.json();
-      if (data.success) {
-        setCategories(data.data.categories);
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-    }
-  };
-
-  const fetchBrands = async () => {
-    try {
-      const res = await fetch(`${config.apiBaseUrl}/products/brands/list`);
-      const data = await res.json();
-      if (data.success) {
-        setBrands(data.data.brands);
-      }
-    } catch (error) {
-      console.error("Error fetching brands:", error);
-    }
-  };
-
-  const fetchProducts = async (pageNum: number = 1, reset: boolean = false) => {
-    if (reset) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-
-    try {
-      const params = new URLSearchParams({
-        page: pageNum.toString(),
-        limit: "50",
-        sortBy,
-      });
-
-      if (debouncedSearch) params.append("search", debouncedSearch);
-      if (selectedCategory) params.append("category", selectedCategory);
-      if (selectedBrand) params.append("brand", selectedBrand);
-      if (minPrice) params.append("minPrice", minPrice);
-      if (maxPrice) params.append("maxPrice", maxPrice);
-      if (minRating) params.append("minRating", minRating);
-
-      const res = await fetch(`${config.apiBaseUrl}/products?${params}`);
-      const data: ProductsResponse = await res.json();
-
-      if (data.success) {
-        const newProducts = data.data.products;
-        if (reset) {
-          setProducts(newProducts);
-        } else {
-          setProducts((prev) => [...prev, ...newProducts]);
-        }
-
-        const totalPages = data.data.pagination.totalPages;
-        setHasMore(pageNum < totalPages);
-        setPage(pageNum);
-      }
-    } catch (error) {
-      console.error("Error fetching products:", error);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  };
-
-  const loadMoreProducts = useCallback(() => {
-    if (!loadingMore && hasMore) {
-      fetchProducts(page + 1, false);
-    }
-  }, [page, loadingMore, hasMore]);
+  }, [hasMore, loading, loadingMore, loadMoreProducts]);
 
   const fetchProductDetails = async (productId: string) => {
     setLoadingDetails(true);
     try {
-      const res = await fetch(`${config.apiBaseUrl}/products/${productId}`);
-      const data = await res.json();
+      const data = await productsAPI.getProductById(productId);
 
       if (data.success) {
         setProductDetails(data.data);
       }
     } catch (error) {
-      console.error("Error fetching product details:", error);
+      if (!axios.isCancel(error)) {
+        console.error("Error fetching product details:", error);
+      }
     } finally {
       setLoadingDetails(false);
     }
