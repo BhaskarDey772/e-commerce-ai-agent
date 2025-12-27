@@ -8,8 +8,6 @@ COPY package.json package-lock.json* ./
 RUN npm ci && npm install tsx && npm cache clean --force
 COPY . .
 
-# Generate Prisma Client
-RUN npx prisma generate
 
 # Production image
 FROM base AS runner
@@ -25,8 +23,6 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
-# Generate Prisma Client for production
-RUN npx prisma generate
 
 # Create cache directory
 RUN mkdir -p /app/cache/images
