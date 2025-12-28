@@ -31,7 +31,7 @@ export function createChatTools(
 
     search_policies: dynamicTool({
       description:
-        "Use ONLY for store policies and FAQs: shipping, returns, privacy, etc. Returns policy and FAQ documents for you to extract relevant information. You MUST extract only the specific answer to the user's question - do NOT return the entire policy and FAQ document.",
+        "Use for ALL policy questions, FAQs, and general store information. This includes: shipping, returns, refunds, privacy, order tracking, account help, payment methods, store hours, contact info, how-to questions, and any non-product questions. ALWAYS use this tool when user asks about store policies, FAQs, or general help.",
       inputSchema: z.object({
         query: z.string(),
       }),

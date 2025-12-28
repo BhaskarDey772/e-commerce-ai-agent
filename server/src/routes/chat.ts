@@ -15,7 +15,7 @@ import {
 } from "@/utils";
 
 const router = Router();
-const chatModel = openai("gpt-5-mini");
+const chatModel = openai("gpt-4o-mini");
 
 const sendMessageSchema = z.object({
   message: z
