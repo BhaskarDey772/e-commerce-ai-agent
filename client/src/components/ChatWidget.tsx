@@ -106,26 +106,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
   const fetchAllConversations = useCallback(async () => {
     if (conversationsLoaded) {
       setConversations(cachedConversations);
-      if (Array.isArray(cachedConversations) && cachedConversations.length === 0) {
-        const newConvData = await api.createNewConversation();
-        if (newConvData.success) {
-          const newConversationId = newConvData.data.conversationId;
-          const newConversation: Conversation = {
-            id: newConversationId,
-            sessionId: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            messageCount: 0,
-            preview: "New chat",
-          };
-          cachedConversations = [newConversation];
-          setConversations(cachedConversations);
-          setCurrentConversationId(newConversationId);
-          setMessages([]);
-          messagesCache.set(newConversationId, []);
-          sessionIdCache.set(newConversationId, null);
-        }
-      } else if (cachedConversations.length > 0 && !currentConversationId) {
+      if (cachedConversations.length > 0 && !currentConversationId) {
         const firstConv = cachedConversations[0];
         setCurrentConversationId(firstConv.id);
         if (firstConv.messageCount > 0) {
@@ -151,26 +132,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
         setConversations(cachedConversations);
         conversationsLoaded = true;
 
-        if (cachedConversations.length === 0) {
-          const newConvData = await api.createNewConversation();
-          if (newConvData.success) {
-            const newConversationId = newConvData.data.conversationId;
-            const newConversation: Conversation = {
-              id: newConversationId,
-              sessionId: null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              messageCount: 0,
-              preview: "New chat",
-            };
-            cachedConversations = [newConversation];
-            setConversations(cachedConversations);
-            setCurrentConversationId(newConversationId);
-            setMessages([]);
-            messagesCache.set(newConversationId, []);
-            sessionIdCache.set(newConversationId, null);
-          }
-        } else if (
+        if (
           Array.isArray(cachedConversations) &&
           cachedConversations.length > 0 &&
           !currentConversationId
@@ -209,8 +171,6 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
 
     return () => {
       document.body.style.overflow = "";
-      if (!isOpen) {
-      }
     };
   }, [isOpen, fetchAllConversations]);
 
@@ -319,23 +279,50 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
       let conversationId = currentConversationId || null;
 
       if (!conversationId) {
-        const existingConversation = Array.isArray(conversations)
-          ? conversations.find((conv) => conv.messageCount > 0)
-          : null;
-
-        if (existingConversation) {
-          conversationId = existingConversation.id;
-          const cachedMessages = messagesCache.get(conversationId);
-          if (cachedMessages && cachedMessages.length > 0) {
-            setMessages([...cachedMessages, tempUserMessage]);
+        // If no conversations exist, create a new one before sending the message
+        if (Array.isArray(conversations) && conversations.length === 0) {
+          const newConvData = await api.createNewConversation();
+          if (newConvData.success) {
+            conversationId = newConvData.data.conversationId;
+            const newConversation: Conversation = {
+              id: conversationId,
+              sessionId: null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              messageCount: 0,
+              preview: "New chat",
+            };
+            cachedConversations = [newConversation];
+            setConversations(cachedConversations);
+            setCurrentConversationId(conversationId);
+            setMessages([tempUserMessage]);
+            messagesCache.set(conversationId, []);
+            sessionIdCache.set(conversationId, null);
           } else {
-            await fetchMessages(conversationId);
-            setMessages((prev) => {
-              const withoutTemp = prev.filter((m) => !m.id.startsWith("temp"));
-              return [...withoutTemp, tempUserMessage];
-            });
+            toast.error("Failed to create conversation");
+            setLoading(false);
+            return;
           }
-          setCurrentConversationId(conversationId);
+        } else {
+          // Find existing conversation with messages
+          const existingConversation = Array.isArray(conversations)
+            ? conversations.find((conv) => conv.messageCount > 0)
+            : null;
+
+          if (existingConversation) {
+            conversationId = existingConversation.id;
+            const cachedMessages = messagesCache.get(conversationId);
+            if (cachedMessages && cachedMessages.length > 0) {
+              setMessages([...cachedMessages, tempUserMessage]);
+            } else {
+              await fetchMessages(conversationId);
+              setMessages((prev) => {
+                const withoutTemp = prev.filter((m) => !m.id.startsWith("temp"));
+                return [...withoutTemp, tempUserMessage];
+              });
+            }
+            setCurrentConversationId(conversationId);
+          }
         }
       } else {
         setMessages((prev) => {

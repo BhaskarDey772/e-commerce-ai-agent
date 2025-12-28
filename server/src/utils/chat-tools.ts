@@ -39,22 +39,44 @@ export function createChatTools(
         try {
           const knowledge = await searchKnowledge(
             normalizedQuery,
-            env.MAX_KNOWLEDGE_BASE_SEARCH_ITEMS,
+            env.MAX_KNOWLEDGE_BASE_SEARCH_ITEMS, // Keep this, but only use top result
           );
+    
+          // ✅ Use ONLY the most relevant result (first one)
+          const topResult = knowledge[0];
+          
+          if (!topResult) {
+            const errorResult: PolicyToolResult = {
+              type: "policy_response",
+              answer:
+                "I don't have information about that policy. Please contact customer support for more details.",
+              sources: [],
+            };
+            policyToolResultRef.value = errorResult;
+            return JSON.stringify(errorResult);
+          }
+    
+          // ✅ Extract the answer from the top result
+          // Truncate to max ~60 words to give room for formatting
+          const maxWords = 60;
+          const words = topResult.content.split(/\s+/);
+          const truncatedContent = words.slice(0, maxWords).join(" ");
+          const answer = words.length > maxWords 
+            ? truncatedContent + "..." 
+            : topResult.content;
+    
           const policyResult: PolicyToolResult = {
             type: "policy_response",
-            answer:
-              knowledge.length > 0
-                ? knowledge.map((k) => k.content).join("\n\n")
-                : "I don't have information about that policy. Please contact customer support for more details.",
-            sources: knowledge.map((k) => ({
-              title: k.title,
-              source: k.source,
-            })),
+            answer: answer,
+            sources: [
+              {
+                title: topResult.title,
+                source: topResult.source,
+              },
+            ],
           };
-
+    
           policyToolResultRef.value = policyResult;
-
           return JSON.stringify(policyResult);
         } catch (error) {
           console.error("Error in search_policies tool:", error);
