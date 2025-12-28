@@ -458,7 +458,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          <Button
+          {/* <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-white hover:bg-white/20"
@@ -466,7 +466,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
             title="Minimize"
           >
             <Minimize2 className="w-4 h-4" />
-          </Button>
+          </Button> */}
           <Button
             variant="ghost"
             size="icon"

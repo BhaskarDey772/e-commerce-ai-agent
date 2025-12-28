@@ -8,7 +8,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   return (
     <div className={cn("flex gap-2 animate-fade-in", isUser ? "flex-row-reverse" : "flex-row")}>
-      {/* Avatar */}
       <div
         className={cn(
           "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center",
@@ -23,8 +22,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <User className="w-3.5 h-3.5 text-primary" />
         )}
       </div>
-
-      {/* Message Bubble */}
       <div
         className={cn(
           "max-w-[85%] md:max-w-[75%] rounded-xl px-3 py-2",

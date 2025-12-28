@@ -31,7 +31,7 @@ export function createChatTools(
 
     search_policies: dynamicTool({
       description:
-        "Use ONLY for store policies: shipping, returns, privacy, etc. Returns policy documents for you to extract relevant information. You MUST extract only the specific answer to the user's question - do NOT return the entire policy document.",
+        "Use ONLY for store policies and FAQs: shipping, returns, privacy, etc. Returns policy and FAQ documents for you to extract relevant information. You MUST extract only the specific answer to the user's question - do NOT return the entire policy and FAQ document.",
       inputSchema: z.object({
         query: z.string(),
       }),
@@ -51,11 +51,9 @@ export function createChatTools(
               sources: [],
             };
             policyToolResultRef.value = errorResult;
-            // Convert to TOON format for token efficiency
             return jsonToToon(errorResult);
           }
 
-          // Extract only the relevant answer from the policy content
           const extractedAnswer = await extractPolicyAnswer(normalizedQuery, topResult.content);
 
           const policyResult: PolicyToolResult = {
@@ -70,7 +68,6 @@ export function createChatTools(
           };
 
           policyToolResultRef.value = policyResult;
-          // Convert to TOON format for token efficiency
           return jsonToToon(policyResult);
         } catch (error) {
           console.error("Error in search_policies tool:", error);
@@ -80,7 +77,6 @@ export function createChatTools(
               "I encountered an error while searching for policy information. Please try again or contact customer support.",
           };
           policyToolResultRef.value = errorResult;
-          // Convert to TOON format for token efficiency
           return jsonToToon(errorResult);
         }
       },

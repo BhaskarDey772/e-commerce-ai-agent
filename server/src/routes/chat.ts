@@ -4,6 +4,7 @@ import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 import { AppError, errorResponse, prisma, successResponse } from "@/lib";
 import { SYSTEM_PROMPT } from "@/prompts/system-prompt";
+import fs from "fs/promises";
 import type { PolicyToolResult, ProductToolResult } from "@/types";
 import {
   createChatTools,
@@ -14,7 +15,7 @@ import {
 } from "@/utils";
 
 const router = Router();
-const chatModel = openai("gpt-4o-mini");
+const chatModel = openai("gpt-5-mini");
 
 const sendMessageSchema = z.object({
   message: z
@@ -75,6 +76,9 @@ router.post("/message", async (req: Request, res: Response) => {
       messages: aiMessages,
       tools,
     });
+
+    // add logs in a file
+    await fs.appendFile("logs.txt", `${JSON.stringify(result, null, 2)}\n\n`);
 
     const finalResponse = parseLLMResponse(
       result.text,
