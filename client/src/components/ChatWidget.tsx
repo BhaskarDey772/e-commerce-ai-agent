@@ -6,7 +6,7 @@ import { ChatMessage, TypingIndicator } from "@/components/ChatMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { chatAPI } from "@/lib/chat-api";
+import { api } from "@/lib/api";
 import type {
   ChatButtonProps,
   ChatResponse,
@@ -60,7 +60,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
       setLoadingMessages(true);
       setMessages([]);
       try {
-        const data = await chatAPI.getConversationById(conversationId);
+        const data = await api.getConversationById(conversationId);
         console.log("Fetched conversation data:", data);
         if (data.success && data.data) {
           if (Array.isArray(data.data.messages)) {
@@ -79,27 +79,23 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
           console.warn("Response not successful or missing data:", data);
         }
       } catch (error) {
-        if (!axios.isCancel(error)) {
-          console.error("Error fetching messages:", error);
-          if (axios.isAxiosError(error)) {
-            console.error("Axios error details:", {
-              status: error.response?.status,
-              statusText: error.response?.statusText,
-              data: error.response?.data,
-              message: error.message,
-            });
-          }
-          const errorMessage =
-            axios.isAxiosError(error) && error.response?.data
-              ? (error.response.data as { error?: { message?: string } })?.error?.message ||
-                "Failed to load messages"
-              : error instanceof Error
-                ? error.message
-                : "Failed to load messages";
-          toast.error(errorMessage);
-        } else {
-          console.log("Request was cancelled");
+        console.error("Error fetching messages:", error);
+        if (axios.isAxiosError(error)) {
+          console.error("Axios error details:", {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            message: error.message,
+          });
         }
+        const errorMessage =
+          axios.isAxiosError(error) && error.response?.data
+            ? (error.response.data as { error?: { message?: string } })?.error?.message ||
+              "Failed to load messages"
+            : error instanceof Error
+              ? error.message
+              : "Failed to load messages";
+        toast.error(errorMessage);
       } finally {
         setLoadingMessages(false);
       }
@@ -111,7 +107,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
     if (conversationsLoaded) {
       setConversations(cachedConversations);
       if (Array.isArray(cachedConversations) && cachedConversations.length === 0) {
-        const newConvData = await chatAPI.createNewConversation();
+        const newConvData = await api.createNewConversation();
         if (newConvData.success) {
           const newConversationId = newConvData.data.conversationId;
           const newConversation: Conversation = {
@@ -149,14 +145,14 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
 
     setLoadingConversations(true);
     try {
-      const data = await chatAPI.getConversations();
+      const data = await api.getConversations();
       if (data.success && data.data && Array.isArray(data.data.conversations)) {
         cachedConversations = data.data.conversations;
         setConversations(cachedConversations);
         conversationsLoaded = true;
 
         if (cachedConversations.length === 0) {
-          const newConvData = await chatAPI.createNewConversation();
+          const newConvData = await api.createNewConversation();
           if (newConvData.success) {
             const newConversationId = newConvData.data.conversationId;
             const newConversation: Conversation = {
@@ -195,10 +191,8 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
         }
       }
     } catch (error) {
-      if (!axios.isCancel(error)) {
-        console.error("Error fetching conversations:", error);
-        toast.error("Failed to load conversations");
-      }
+      console.error("Error fetching conversations:", error);
+      toast.error("Failed to load conversations");
     } finally {
       setLoadingConversations(false);
     }
@@ -216,7 +210,6 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
     return () => {
       document.body.style.overflow = "";
       if (!isOpen) {
-        chatAPI.cancelAllRequests();
       }
     };
   }, [isOpen, fetchAllConversations]);
@@ -279,7 +272,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
     }
 
     try {
-      const data = await chatAPI.createNewConversation();
+      const data = await api.createNewConversation();
       if (data.success) {
         const newConversationId = data.data.conversationId;
         setCurrentConversationId(newConversationId);
@@ -300,9 +293,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
         setConversations(cachedConversations);
       }
     } catch (error) {
-      if (!axios.isCancel(error)) {
-        console.error("Error creating conversation:", error);
-      }
+      console.error("Error creating conversation:", error);
     }
   };
 
@@ -355,7 +346,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
         });
       }
 
-      const data = await chatAPI.sendMessage({
+      const data = await api.sendMessage({
         message: userMessage,
         conversationId: conversationId,
       });

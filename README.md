@@ -1,6 +1,6 @@
 # Spur - AI-Powered E-Commerce Platform
 
-Spur is a modern e-commerce platform featuring an intelligent AI assistant that helps users discover products and get answers about store policies using natural language queries. The platform leverages OpenAI's GPT models for conversational AI, vector embeddings for semantic search, and a robust full-stack architecture.
+Spur is a modern e-commerce platform featuring an intelligent AI assistant that helps users discover products and get answers about store policies using natural language queries. The platform leverages OpenAI's GPT models for conversational AI, vector embeddings for semantic search, and a robust full-stack architecture with token-efficient data formats.
 
 ## ✨ Features
 
@@ -17,6 +17,7 @@ Spur is a modern e-commerce platform featuring an intelligent AI assistant that 
 - **Context-Aware Responses**: Understands user intent and provides personalized recommendations
 - **Loading States**: Smooth loading animations while fetching conversations and messages
 - **Message Caching**: Module-level cache prevents redundant API calls when switching conversations
+- **Token Optimization**: Uses TOON (Token-Oriented Object Notation) format for 30-60% token reduction
 
 ### 🛍️ Product Discovery
 - **Advanced Search**: Filter products by category, brand, price range, and ratings
@@ -29,7 +30,7 @@ Spur is a modern e-commerce platform featuring an intelligent AI assistant that 
 - **Component Library**: shadcn/ui components for consistent design
 - **Real-time Updates**: Instant feedback and smooth interactions
 - **Markdown Rendering**: Rich text formatting in AI responses
-- **HTTPS Image Support**: Automatic HTTP to HTTPS conversion for secure image loading on Netlify
+- **HTTPS Image Support**: Automatic HTTP to HTTPS conversion for secure image loading
 - **Product Image Carousel**: Interactive image gallery with thumbnail navigation
 - **Structured Responses**: Rich product cards, policy information, and formatted messages
 
@@ -43,6 +44,7 @@ Spur is a modern e-commerce platform featuring an intelligent AI assistant that 
 - **shadcn/ui** - Component library
 - **React Router** - Client-side routing
 - **React Markdown** - Markdown rendering
+- **Axios** - HTTP client (unified API instance)
 - **Biome** - Code formatting and linting
 
 ### Backend
@@ -54,6 +56,7 @@ Spur is a modern e-commerce platform featuring an intelligent AI assistant that 
 - **pgvector** - Vector extension for embeddings
 - **Redis** - Caching and session management
 - **AI SDK** (`@ai-sdk/openai`, `ai`) - Tool calling, embeddings, and agentic behavior
+- **TOON Format** (`@toon-format/toon`) - Token-efficient data format for LLMs
 - **Zod** - Schema validation
 - **Biome** - Code formatting and linting
 - **Docker** - Containerization for deployment
@@ -62,60 +65,89 @@ Spur is a modern e-commerce platform featuring an intelligent AI assistant that 
 - **OpenAI GPT-4o-mini** - Query understanding and response generation
 - **OpenAI text-embedding-3-small** - Vector embeddings (1536 dimensions)
 - **Cosine Similarity** - Product ranking and relevance scoring
+- **TOON Format** - 30-60% token reduction for structured data
 
 ## 📁 Project Structure
 
 ```
 Spur/
-├── client/                 # Frontend React application
+├── client/                             # Frontend React application
 │   ├── src/
-│   │   ├── components/     # React components
-│   │   │   ├── ui/         # shadcn/ui components
-│   │   │   ├── ChatWidget.tsx      # Floating chat widget
-│   │   │   ├── ChatMessage.tsx    # Message component
-│   │   │   ├── ProductCard.tsx    # Product card component
+│   │   ├── components/                 # React components
+│   │   │   ├── ui/                     # shadcn/ui components
+│   │   │   ├── ChatWidget.tsx          # Floating chat widget
+│   │   │   ├── ChatMessage.tsx         # Message component
+│   │   │   ├── ProductCard.tsx         # Product card component
 │   │   │   └── StructuredResponse.tsx  # AI response renderer
-│   │   ├── pages/          # Page components
-│   │   │   └── ProductsPage.tsx   # Main products page
-│   │   ├── lib/            # Utilities and config
-│   │   │   ├── config.ts   # API configuration
-│   │   │   └── utils.ts    # Utilities (HTTPS conversion, etc.)
-│   │   └── hooks/          # Custom React hooks
-│   ├── public/             # Static assets
-│   │   └── _redirects      # Netlify SPA routing
-│   ├── netlify.toml        # Netlify configuration
+│   │   ├── pages/                      # Page components
+│   │   │   └── ProductsPage.tsx        # Main products page
+│   │   ├── lib/                        # Utilities and config
+│   │   │   ├── api.ts                  # Unified API client (products, chat, images)
+│   │   │   ├── config.ts               # API configuration
+│   │   │   ├── utils.ts                # Utilities (image proxying, etc.)
+│   │   │   └── chat-helpers.ts         # Chat-related helper types
+│   │   ├── types/                      # TypeScript type definitions
+│   │   │   ├── chat.ts                 # Chat-related types
+│   │   │   ├── products.ts             # Product-related types
+│   │   │   ├── chat-response.ts        # Chat response types
+│   │   │   └── index.ts                # Type exports
+│   │   └── hooks/                      # Custom React hooks
+│   ├── public/                         # Static assets
+│   │   └── _redirects                  # Netlify SPA routing
+│   ├── netlify.toml                    # Netlify configuration
 │   └── package.json
 │
-├── server/                 # Backend Express application
+├── server/                             # Backend Express application
 │   ├── src/
-│   │   ├── routes/         # API routes
-│   │   │   ├── chat.ts     # Chat/conversation endpoints
-│   │   │   └── products.ts # Product endpoints
-│   │   ├── utils/          # Utility functions
-│   │   │   ├── query-builder.ts      # LLM-based query generation
-│   │   │   ├── query-normalizer.ts   # Typo correction
-│   │   │   ├── embeddings.ts         # AI SDK embeddings
-│   │   │   ├── knowledge.ts          # Policy/FAQ search
-│   │   │   ├── product-cache.ts      # Redis product caching
-│   │   │   └── spec-parser.ts        # Product spec parsing
-│   │   ├── lib/            # Core libraries
-│   │   │   ├── prisma.ts   # Prisma client
-│   │   │   ├── redis.ts    # Redis client
-│   │   │   ├── error.ts    # Error handling
-│   │   │   └── response.ts # Response utilities
-│   │   └── index.ts        # Express app entry point
+│   │   ├── routes/                     # API routes
+│   │   │   ├── chat.ts                 # Chat/conversation endpoints
+│   │   │   ├── products.ts             # Product endpoints
+│   │   │   └── images.ts               # Image proxy endpoints
+│   │   ├── utils/                      # Utility functions
+│   │   │   ├── chat-tools.ts           # AI tool definitions
+│   │   │   ├── conversation-manager.ts # Conversation logic
+│   │   │   ├── session-manager.ts      # Session management
+│   │   │   ├── query-builder.ts        # LLM-based query generation
+│   │   │   ├── query-normalizer.ts     # Typo correction
+│   │   │   ├── embeddings.ts           # AI SDK embeddings
+│   │   │   ├── knowledge.ts            # Policy/FAQ search
+│   │   │   ├── product-cache.ts        # Redis product caching
+│   │   │   ├── image-cache.ts          # Image caching
+│   │   │   ├── spec-parser.ts          # Product spec parsing
+│   │   │   ├── response-parser.ts      # LLM response parsing
+│   │   │   ├── toon-converter.ts       # JSON to TOON conversion
+│   │   │   └── index.ts                # Utility exports
+│   │   ├── prompts/                    # AI system prompts
+│   │   │   ├── system-prompt.ts        # Main chat system prompt
+│   │   │   └── query-builder-prompt.ts # Query builder prompt
+│   │   ├── types/                      # TypeScript type definitions
+│   │   │   ├── chat.ts                 # Chat tool result types
+│   │   │   ├── products.ts             # Product types
+│   │   │   ├── query.ts                # Query builder types
+│   │   │   ├── specifications.ts       # Spec parsing types
+│   │   │   ├── image-cache.ts          # Image cache types
+│   │   │   ├── response.ts             # API response types
+│   │   │   └── index.ts                # Type exports
+│   │   ├── lib/                        # Core libraries
+│   │   │   ├── prisma.ts               # Prisma client
+│   │   │   ├── redis.ts                # Redis client
+│   │   │   ├── error.ts                # Error handling
+│   │   │   ├── response.ts             # Response utilities
+│   │   │   └── index.ts                # Library exports
+│   │   ├── env.ts                      # Environment variable validation
+│   │   └── index.ts                    # Express app entry point
 │   ├── prisma/
-│   │   └── schema.prisma   # Database schema
-│   ├── seed/               # Database seeding scripts
-│   │   ├── ingest.ts       # Main seed script
-│   │   ├── policies/       # Policy markdown files
-│   │   ├── faq/            # FAQ markdown files
-│   │   └── utils/           # Seed utilities
-│   ├── Dockerfile          # Docker configuration
-│   ├── docker-compose.yml  # Docker Compose setup
+│   │   └── schema.prisma               # Database schema
+│   ├── seed/                           # Database seeding scripts
+│   │   ├── ingest.ts                   # Main seed script
+│   │   ├── policies/                   # Policy markdown files
+│   │   ├── faq/                        # FAQ markdown files
+│   │   └── utils/                      # Seed utilities
+│   ├── Dockerfile                      # Docker configuration
+│   ├── docker-compose.yml              # Docker Compose setup
 │   └── package.json
 │
-└── README.md               # This file
+└── README.md                           # This file
 ```
 
 ## 🚀 Getting Started
@@ -169,11 +201,18 @@ REDIS_PASSWORD=
 
 # OpenAI
 OPENAI_API_KEY=your_openai_api_key_here
+
+# Limits
+MAX_PRODUCT_ITEMS=7
+MAX_KNOWLEDGE_BASE_SEARCH_ITEMS=5
+
+# Frontend URL
+FRONTEND_URL=http://localhost:5173
 ```
 
 **Frontend** (`client/.env`):
 ```env
-VITE_API_BASE_URL=http://localhost:3000
+VITE_API_BASE_URL=http://localhost:3001
 ```
 
 ### Database Setup
@@ -212,7 +251,7 @@ bun run dev
 npm run dev
 ```
 
-The server will start on `http://localhost:3000`
+The server will start on `http://localhost:3001`
 
 **Start the frontend development server:**
 ```bash
@@ -230,13 +269,12 @@ The frontend will start on `http://localhost:5173`
   - Returns: `{ conversationId: string, isExisting: boolean }`
   - If empty conversation exists, returns existing one with `isExisting: true`
   
-- `GET /chat/conversations?sessionId=<id>` - Get all conversations
-  - `sessionId` is optional
+- `GET /chat/conversations` - Get all conversations
   - Returns conversations ordered by `updatedAt` descending
   - Includes `messageCount` and `preview` for each conversation
   
 - `GET /chat/conversation/:id` - Get conversation with messages
-  - Returns: `{ messages: Message[], sessionId: string | null }`
+  - Returns: `{ conversationId: string, sessionId: string | null, messages: Message[] }`
   
 - `POST /chat/message` - Send a message and get AI response
   ```json
@@ -248,12 +286,21 @@ The frontend will start on `http://localhost:5173`
   - If `conversationId` provided: Uses existing conversation
   - If no `conversationId`: Creates new session and conversation
   - Returns: `{ reply: string, sessionId: string, conversationId: string }`
+  - Product data is returned in TOON format for token efficiency
 
 ### Product Endpoints
 
 - `GET /products` - Get all products with pagination and filters
-  - Query params: `page`, `limit`, `category`, `brand`, `minPrice`, `maxPrice`, `minRating`, `search`
+  - Query params: `page`, `limit`, `category`, `brand`, `minPrice`, `maxPrice`, `minRating`, `search`, `sortBy`
 - `GET /products/:id` - Get product by ID
+- `GET /products/categories/list` - Get all categories
+- `GET /products/brands/list` - Get all brands
+
+### Image Endpoints
+
+- `GET /api/images/proxy` - Proxy and cache images
+  - Query params: `url` (required), `productId` (optional)
+  - Converts HTTP to HTTPS and caches images server-side
 
 ### Health Check
 
@@ -297,6 +344,20 @@ bun run db:studio
 
 ## 🎯 How It Works
 
+### Architecture Overview
+
+#### Frontend Architecture
+- **Unified API Client**: Single `api.ts` file handles all API calls (products, chat, images)
+- **Type Safety**: Centralized type definitions in `types/` folder
+- **Component-Based**: Modular React components with shadcn/ui
+- **State Management**: React hooks with module-level caching for conversations
+
+#### Backend Architecture
+- **Modular Structure**: Separated into `routes/`, `utils/`, `prompts/`, `types/`, and `lib/`
+- **Barrel Exports**: Centralized exports via `index.ts` files
+- **Type Safety**: Comprehensive TypeScript types for all data structures
+- **Token Optimization**: TOON format for LLM communication (30-60% token reduction)
+
 ### Chat Widget Flow
 
 #### Frontend (Widget)
@@ -316,7 +377,7 @@ bun run db:studio
    - User types message and clicks send
    - Input disabled while loading
    - Temporary message shown immediately
-   - API call to `/chat/message`
+   - API call to `/chat/message` via unified `api` client
    - Response received and displayed
    - Conversation list updated
    - Messages cached for future access
@@ -341,7 +402,8 @@ bun run db:studio
      - Products fetched (with `productUrl` included)
      - Products and user query embedded using AI SDK
      - Cosine similarity calculated for ranking
-     - Top products selected and formatted by LLM
+     - Top products selected and formatted
+     - **Product data converted to TOON format** (30-60% token reduction)
    - **Policy/FAQ Query**:
      - Semantic search in knowledge base (policies + FAQs)
      - Relevant documents retrieved
@@ -351,7 +413,7 @@ bun run db:studio
    {
      "message": "Conversational text (may include markdown)",
      "data": {
-       "products": [...] // if product query
+       "products": [...] // if product query (returned in TOON format)
        // or null for policy/general queries
      }
    }
@@ -364,6 +426,35 @@ bun run db:studio
 - **Vector Embeddings**: Product descriptions and user queries embedded using OpenAI
 - **Similarity Ranking**: Cosine similarity for relevance scoring
 - **Hybrid Search**: Combines structured SQL queries with semantic similarity
+- **TOON Format**: Product results converted to TOON before sending to LLM
+
+### Token Optimization (TOON)
+
+The platform uses **TOON (Token-Oriented Object Notation)** format to reduce token usage by 30-60%:
+
+- **When**: Product search results are converted to TOON before being sent to the LLM
+- **Why**: Every `{}`, `[]`, and `"` in JSON counts as tokens. TOON eliminates this overhead
+- **How**: The `toon-converter.ts` utility converts JSON to TOON format automatically
+- **Fallback**: If TOON conversion fails, falls back to JSON
+- **Best For**: Flat, tabular data structures (perfect for product arrays)
+
+Example:
+```json
+// JSON (more tokens)
+{
+  "products": [
+    { "id": 1, "name": "Product A", "price": 100 },
+    { "id": 2, "name": "Product B", "price": 200 }
+  ]
+}
+```
+
+```toon
+// TOON (fewer tokens)
+products[2]{id,name,price}:
+  1,Product A,100
+  2,Product B,200
+```
 
 ## 🚢 Deployment
 
@@ -404,6 +495,8 @@ The backend includes Docker configuration for easy deployment:
    REDIS_PORT=6379
    OPENAI_API_KEY=your_key_here
    FRONTEND_URL=https://your-frontend-url.com
+   MAX_PRODUCT_ITEMS=7
+   MAX_KNOWLEDGE_BASE_SEARCH_ITEMS=5
    ```
 
 2. **Using Docker Compose**:
@@ -427,39 +520,6 @@ The backend includes Docker configuration for easy deployment:
    - Uses Node.js Alpine for lightweight containers
    - Ensure PostgreSQL (Neon DB) and Redis are accessible
 
-
-## 🔄 Recent Updates
-
-### Chat Widget Improvements
-- ✅ **Module-level caching**: Conversations and messages cached to prevent redundant API calls
-- ✅ **Loading states**: Smooth animations while fetching data
-- ✅ **Empty conversation prevention**: Can't create new chat if empty conversation exists
-- ✅ **Session management**: Automatic session creation on first message
-- ✅ **Multiple conversations**: Switch between conversation threads seamlessly
-
-### Image Handling
-- ✅ **HTTPS conversion**: Automatic HTTP to HTTPS conversion for secure image loading
-- ✅ **Image carousel**: Interactive product image gallery with thumbnails
-- ✅ **Error handling**: Fallback placeholder images for broken URLs
-
-### Code Quality
-- ✅ **Biome integration**: Consistent code formatting and linting
-- ✅ **Removed unused files**: Cleaned up Index.tsx, NotFound.tsx, NavLink.tsx, App.css
-- ✅ **Removed unused server utilities**: Cleaned up chat.ts and session.ts utilities
-
-### AI/ML Updates
-- ✅ **AI SDK migration**: Replaced `openai` package with `@ai-sdk/openai` and `ai` SDK
-- ✅ **Embedding improvements**: Better error handling for empty embeddings
-- ✅ **FAQ integration**: General FAQs added to knowledge base
-- ✅ **Structured responses**: Consistent JSON format for all AI responses
-
-### Deployment
-- ✅ **Docker support**: Dockerfile and docker-compose.yml for containerized deployment
-- ✅ **Node.js Alpine**: Lightweight container images
-- ✅ **Netlify configuration**: SPA routing and build configuration
-- ✅ **Neon DB support**: Cloud PostgreSQL integration
-
 ---
 
-Built with ❤️ using React, Express, AI SDK, and OpenAI
-
+Built with ❤️ using React, Express, AI SDK, OpenAI, and TOON Format

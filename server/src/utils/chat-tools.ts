@@ -5,6 +5,7 @@ import { normalizeQuery } from "./query-normalizer";
 import { searchKnowledge } from "./knowledge";
 import { searchProductsForLLM } from "./query-builder";
 import { env } from "@/env";
+import { jsonToToon } from "./toon-converter";
 
 export function createChatTools(
   productToolResultRef: { value: ProductToolResult | null },
@@ -23,7 +24,7 @@ export function createChatTools(
 
         productToolResultRef.value = result as ProductToolResult;
 
-        return JSON.stringify(result);
+        return jsonToToon(result);
       },
     }),
 

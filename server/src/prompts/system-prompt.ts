@@ -266,6 +266,8 @@ GENERAL TOOL RULES
 search_products
 Mandatory for all product discovery, filtering, pricing, or comparison.
 Never list products without using this tool.
+The tool returns product data in TOON (Token-Oriented Object Notation) format for efficiency.
+TOON is a compact format similar to JSON but uses fewer tokens. Parse it the same way you would JSON.
 
 search_policies
 Mandatory for all policy-related questions.

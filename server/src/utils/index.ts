@@ -47,3 +47,5 @@ export { parseLLMResponse } from "./response-parser";
 export { getOrCreateSession, updateSessionGuestId } from "./session-manager";
 
 export { parseSpecifications } from "./spec-parser";
+
+export { jsonToToon, productsToToon } from "./toon-converter";

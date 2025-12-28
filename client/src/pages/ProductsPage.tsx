@@ -25,7 +25,7 @@ import {
 import axios from "axios";
 import type { Product, ProductsResponse } from "@/types";
 import { useDebounce } from "@/hooks/use-debounce";
-import { productsAPI } from "@/lib/products-api";
+import { api } from "@/lib/api";
 import { getProxiedImageUrl } from "@/lib/utils";
 
 export default function ProductsPage() {
@@ -56,27 +56,23 @@ export default function ProductsPage() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const data = await productsAPI.getCategories();
+      const data = await api.getCategories();
       if (data.success) {
         setCategories(data.data.categories);
       }
     } catch (error) {
-      if (!axios.isCancel(error)) {
-        console.error("Error fetching categories:", error);
-      }
+      console.error("Error fetching categories:", error);
     }
   }, []);
 
   const fetchBrands = useCallback(async () => {
     try {
-      const data = await productsAPI.getBrands();
+      const data = await api.getBrands();
       if (data.success) {
         setBrands(data.data.brands);
       }
     } catch (error) {
-      if (!axios.isCancel(error)) {
-        console.error("Error fetching brands:", error);
-      }
+      console.error("Error fetching brands:", error);
     }
   }, []);
 
@@ -102,7 +98,7 @@ export default function ProductsPage() {
         if (maxPrice) params.maxPrice = maxPrice;
         if (minRating) params.minRating = minRating;
 
-        const data = await productsAPI.getProducts(params);
+        const data = await api.getProducts(params);
 
         if (data.success) {
           const newProducts = data.data.products;
@@ -117,9 +113,7 @@ export default function ProductsPage() {
           setPage(pageNum);
         }
       } catch (error) {
-        if (!axios.isCancel(error)) {
-          console.error("Error fetching products:", error);
-        }
+        console.error("Error fetching products:", error);
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -138,9 +132,7 @@ export default function ProductsPage() {
     fetchCategories();
     fetchBrands();
 
-    return () => {
-      productsAPI.cancelAllRequests();
-    };
+    return () => {};
   }, [fetchCategories, fetchBrands]);
 
   useEffect(() => {
@@ -149,9 +141,7 @@ export default function ProductsPage() {
     setHasMore(true);
     fetchProducts(1, true);
 
-    return () => {
-      productsAPI.cancelRequest("products");
-    };
+    return () => {};
   }, [fetchProducts]);
 
   useEffect(() => {
@@ -179,15 +169,13 @@ export default function ProductsPage() {
   const fetchProductDetails = async (productId: string) => {
     setLoadingDetails(true);
     try {
-      const data = await productsAPI.getProductById(productId);
+      const data = await api.getProductById(productId);
 
       if (data.success) {
         setProductDetails(data.data);
       }
     } catch (error) {
-      if (!axios.isCancel(error)) {
-        console.error("Error fetching product details:", error);
-      }
+      console.error("Error fetching product details:", error);
     } finally {
       setLoadingDetails(false);
     }

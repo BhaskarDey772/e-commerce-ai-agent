@@ -12,7 +12,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { productsAPI } from "@/lib/products-api";
+import { api } from "@/lib/api";
 import type {
   NewResponseFormat,
   ParsedMessageProps,
@@ -85,7 +85,7 @@ function ProductList({ products }: ProductListProps) {
                     className="h-6 text-[10px] px-2 cursor-pointer"
                     onClick={async () => {
                       try {
-                        const data = await productsAPI.getProductById(String(product.id));
+                        const data = await api.getProductById(String(product.id));
                         if (data.success && data.data.productUrl) {
                           window.open(data.data.productUrl, "_blank");
                         } else {
@@ -94,9 +94,7 @@ function ProductList({ products }: ProductListProps) {
                           );
                         }
                       } catch (error) {
-                        if (!axios.isCancel(error)) {
-                          console.error("Error fetching product:", error);
-                        }
+                        console.error("Error fetching product:", error);
                       }
                     }}
                   >

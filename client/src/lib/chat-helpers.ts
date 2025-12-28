@@ -1,5 +1,3 @@
-
-
 export type { Conversation, Message } from "@/types";
 
 export function formatMessageTime(timestamp: string): string {
@@ -17,7 +15,6 @@ export function formatMessageTime(timestamp: string): string {
 
   return date.toLocaleDateString();
 }
-
 
 export function truncatePreview(text: string, maxLength: number = 50): string {
   if (text.length <= maxLength) return text;

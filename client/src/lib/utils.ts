@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-import { imageAPI } from "./image-api";
+import { api } from "./api";
 
 /**
  * Get proxied image URL (server-side caching and HTTPS conversion)
@@ -17,7 +17,7 @@ export function getProxiedImageUrl(
   url: string | null | undefined,
   productId?: string | null,
 ): string {
-  return imageAPI.getProxiedImageUrl(url, productId);
+  return api.getProxiedImageUrl(url, productId);
 }
 
 /**
