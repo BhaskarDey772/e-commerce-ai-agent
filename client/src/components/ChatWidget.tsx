@@ -61,7 +61,6 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
       setMessages([]);
       try {
         const data = await api.getConversationById(conversationId);
-        console.log("Fetched conversation data:", data);
         if (data.success && data.data) {
           if (Array.isArray(data.data.messages)) {
             messagesCache.set(conversationId, data.data.messages);

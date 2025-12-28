@@ -41,7 +41,6 @@ export function createChatTools(
         try {
           const knowledge = await searchKnowledge(normalizedQuery, 5);
 
-          console.log("knowledge", knowledge);
           const topResult = knowledge[0];
 
           if (!topResult) {
