@@ -11,14 +11,6 @@ export {
 
 export { getGuestId, getOrCreateGuestId } from "./guest-id";
 
-export {
-  downloadAndCacheImage,
-  getCachedImage,
-  getImage,
-  getProxiedImageUrl,
-  isCached,
-} from "./image-cache";
-
 export { searchKnowledge } from "./knowledge";
 
 export {

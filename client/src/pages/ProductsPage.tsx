@@ -26,7 +26,7 @@ import axios from "axios";
 import type { Product, ProductsResponse } from "@/types";
 import { useDebounce } from "@/hooks/use-debounce";
 import { api } from "@/lib/api";
-import { getProxiedImageUrl } from "@/lib/utils";
+import { getImageUrl } from "@/lib/utils";
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -206,9 +206,9 @@ export default function ProductsPage() {
   ].filter(Boolean).length;
 
   const allImages = productDetails?.images?.length
-    ? productDetails.images.map((img) => getProxiedImageUrl(img, productDetails?.id))
+    ? productDetails.images.map((img) => getImageUrl(img))
     : productDetails?.image
-      ? [getProxiedImageUrl(productDetails.image, productDetails.id)]
+      ? [getImageUrl(productDetails.image)]
       : [];
 
   return (

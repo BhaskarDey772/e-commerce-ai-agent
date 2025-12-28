@@ -2,7 +2,7 @@ import { Star, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Product, ProductCardProps } from "@/types";
-import { getProxiedImageUrl } from "@/lib/utils";
+import { getImageUrl } from "@/lib/utils";
 
 export function ProductCard({ product, onClick, index = 0 }: ProductCardProps) {
   const discount =
@@ -21,7 +21,7 @@ export function ProductCard({ product, onClick, index = 0 }: ProductCardProps) {
         <div className="relative w-28 h-28 md:w-36 md:h-36 flex-shrink-0 rounded-lg overflow-hidden bg-secondary">
           {product.image ? (
             <img
-              src={getProxiedImageUrl(product.image, product.id)}
+              src={getImageUrl(product.image)}
               alt={product.name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               onError={(e) => {

@@ -115,26 +115,17 @@ class API {
     return response.data;
   }
 
-  // Image API
-  getProxiedImageUrl(url: string | null | undefined, productId?: string | null): string {
-    if (!url) return "";
-    if (url.includes("/api/images/proxy")) {
-      return url;
-    }
-    if (url.startsWith("/") || url.startsWith("data:") || url.startsWith("blob:")) {
-      return url;
-    }
-    const encodedUrl = encodeURIComponent(url);
-    const productParam = productId ? `&productId=${productId}` : "";
-    return `${config.apiBaseUrl}/api/images/proxy?url=${encodedUrl}${productParam}`;
-  }
+  // Image URL helper
+  private static readonly FLIPKART_CDN = "https://rukminim2.flixcart.com";
 
-  async getImage(url: string, productId?: string | null): Promise<Blob> {
-    const proxiedUrl = this.getProxiedImageUrl(url, productId);
-    const response = await this.axiosInstance.get<Blob>(proxiedUrl, {
-      responseType: "blob",
-    });
-    return response.data;
+  getImageUrl(url: string | null | undefined): string {
+    if (!url) return "";
+    // Handle partial Flipkart image URLs (e.g., /image/short/...)
+    if (url.startsWith("/image/")) {
+      return `${API.FLIPKART_CDN}${url}`;
+    }
+    // Return as-is for other URLs (data:, blob:, https://, etc.)
+    return url;
   }
 }
 

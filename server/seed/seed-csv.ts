@@ -45,7 +45,7 @@ async function main() {
     console.log("✅ Cleared existing products\n");
 
     // Process products in batches
-    const batchSize = 10;
+    const batchSize = 50;
     let processed = 0;
     let skipped = 0;
 

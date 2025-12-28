@@ -8,16 +8,12 @@ export function cn(...inputs: ClassValue[]) {
 import { api } from "./api";
 
 /**
- * Get proxied image URL (server-side caching and HTTPS conversion)
- * @param url - The original image URL (can be HTTP or HTTPS)
- * @param productId - Optional product ID for better caching
- * @returns The proxied image URL served through the server
+ * Get the full image URL from a partial path
+ * @param url - The image URL (can be partial like /image/... or full URL)
+ * @returns The full image URL with CDN domain if needed
  */
-export function getProxiedImageUrl(
-  url: string | null | undefined,
-  productId?: string | null,
-): string {
-  return api.getProxiedImageUrl(url, productId);
+export function getImageUrl(url: string | null | undefined): string {
+  return api.getImageUrl(url);
 }
 
 /**
@@ -68,18 +64,4 @@ function truncateByLength(text: string, maxLength: number): string {
 
   // Otherwise, just cut at maxLength
   return `${truncated}...`;
-}
-
-/**
- * @deprecated Use getProxiedImageUrl instead for better caching and HTTPS support
- * Convert HTTP URLs to HTTPS to fix mixed content issues
- * @param url - The URL to convert
- * @returns The URL with HTTPS protocol, or the original URL if it's not HTTP
- */
-export function ensureHttps(url: string | null | undefined): string {
-  if (!url) return "";
-  if (url.startsWith("http://")) {
-    return url.replace("http://", "https://");
-  }
-  return url;
 }
