@@ -14,7 +14,7 @@ import type {
   Conversation,
   Message,
 } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, truncateToWords } from "@/lib/utils";
 
 const messagesCache = new Map<string, Message[]>();
 const sessionIdCache = new Map<string, string | null>();
@@ -368,7 +368,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             messageCount: 2,
-            preview: userMessage.substring(0, 50),
+            preview: truncateToWords(userMessage, 40, 6),
           };
           cachedConversations = [newConversation, ...cachedConversations];
           setConversations([...cachedConversations]);
@@ -420,7 +420,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
               ...conv,
               messageCount: conv.messageCount + 2,
               updatedAt: new Date().toISOString(),
-              preview: isFirstMessage ? userMessage.substring(0, 50) : conv.preview,
+              preview: isFirstMessage ? truncateToWords(userMessage, 40, 6) : conv.preview,
             };
           }
           return conv;
@@ -512,7 +512,7 @@ export function ChatWidget({ isOpen, onClose, onMinimize }: ChatWidgetProps) {
                     : "bg-secondary hover:bg-secondary/80",
                 )}
               >
-                {conv.preview || "New chat"}
+                {truncateToWords(conv.preview || "New chat", 40, 6)}
               </button>
             ))}
           </div>

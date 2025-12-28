@@ -44,8 +44,10 @@ export { extractCategory, normalizeQuery } from "./query-normalizer";
 
 export { parseLLMResponse } from "./response-parser";
 
+export { extractPolicyAnswer } from "./policy-extractor";
+
 export { getOrCreateSession, updateSessionGuestId } from "./session-manager";
 
 export { parseSpecifications } from "./spec-parser";
 
-export { jsonToToon, productsToToon } from "./toon-converter";
+export { jsonToToon, messagesToToon, productsToToon } from "./toon-converter";

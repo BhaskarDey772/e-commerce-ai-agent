@@ -6,6 +6,7 @@ import { searchKnowledge } from "./knowledge";
 import { searchProductsForLLM } from "./query-builder";
 import { env } from "@/env";
 import { jsonToToon } from "./toon-converter";
+import { extractPolicyAnswer } from "./policy-extractor";
 
 export function createChatTools(
   productToolResultRef: { value: ProductToolResult | null },
@@ -29,7 +30,8 @@ export function createChatTools(
     }),
 
     search_policies: dynamicTool({
-      description: "Use ONLY for store policies: shipping, returns, privacy, etc.",
+      description:
+        "Use ONLY for store policies: shipping, returns, privacy, etc. Returns policy documents for you to extract relevant information. You MUST extract only the specific answer to the user's question - do NOT return the entire policy document.",
       inputSchema: z.object({
         query: z.string(),
       }),
@@ -37,14 +39,11 @@ export function createChatTools(
         const { query } = input as { query: string };
         const normalizedQuery = normalizeQuery(query);
         try {
-          const knowledge = await searchKnowledge(
-            normalizedQuery,
-            env.MAX_KNOWLEDGE_BASE_SEARCH_ITEMS, // Keep this, but only use top result
-          );
-    
-          // ✅ Use ONLY the most relevant result (first one)
+          const knowledge = await searchKnowledge(normalizedQuery, 5);
+
+          console.log("knowledge", knowledge);
           const topResult = knowledge[0];
-          
+
           if (!topResult) {
             const errorResult: PolicyToolResult = {
               type: "policy_response",
@@ -53,21 +52,16 @@ export function createChatTools(
               sources: [],
             };
             policyToolResultRef.value = errorResult;
-            return JSON.stringify(errorResult);
+            // Convert to TOON format for token efficiency
+            return jsonToToon(errorResult);
           }
-    
-          // ✅ Extract the answer from the top result
-          // Truncate to max ~60 words to give room for formatting
-          const maxWords = 60;
-          const words = topResult.content.split(/\s+/);
-          const truncatedContent = words.slice(0, maxWords).join(" ");
-          const answer = words.length > maxWords 
-            ? truncatedContent + "..." 
-            : topResult.content;
-    
+
+          // Extract only the relevant answer from the policy content
+          const extractedAnswer = await extractPolicyAnswer(normalizedQuery, topResult.content);
+
           const policyResult: PolicyToolResult = {
             type: "policy_response",
-            answer: answer,
+            answer: extractedAnswer,
             sources: [
               {
                 title: topResult.title,
@@ -75,9 +69,10 @@ export function createChatTools(
               },
             ],
           };
-    
+
           policyToolResultRef.value = policyResult;
-          return JSON.stringify(policyResult);
+          // Convert to TOON format for token efficiency
+          return jsonToToon(policyResult);
         } catch (error) {
           console.error("Error in search_policies tool:", error);
           const errorResult: PolicyToolResult = {
@@ -86,7 +81,8 @@ export function createChatTools(
               "I encountered an error while searching for policy information. Please try again or contact customer support.",
           };
           policyToolResultRef.value = errorResult;
-          return JSON.stringify(errorResult);
+          // Convert to TOON format for token efficiency
+          return jsonToToon(errorResult);
         }
       },
     }),

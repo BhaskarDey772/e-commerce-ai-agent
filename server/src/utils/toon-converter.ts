@@ -17,3 +17,16 @@ export function productsToToon(products: Array<Record<string, unknown>>): string
     return JSON.stringify({ products });
   }
 }
+
+/**
+ * Converts conversation history (array of messages) to TOON format
+ * for token-efficient LLM communication
+ */
+export function messagesToToon(messages: Array<{ role: string; content: string }>): string {
+  try {
+    return encode({ messages });
+  } catch (error) {
+    console.error("Error converting messages to TOON, falling back to JSON:", error);
+    return JSON.stringify({ messages });
+  }
+}

@@ -367,7 +367,6 @@ export async function searchProductsForLLM(
     productUrl: string | null;
   }[];
 }> {
-
   console.log("userQuery", userQuery);
   const normalizedQuery = normalizeQuery(userQuery);
   const structuredQuery = await buildProductQueryWithLLM(normalizedQuery);

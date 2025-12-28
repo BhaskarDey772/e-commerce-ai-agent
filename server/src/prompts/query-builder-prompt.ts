@@ -47,7 +47,6 @@
 // User: "dress for a 17 years old girl"
 // Response: {"category": "clothing", "searchText": "dress girl", "sortBy": "newest"}`;
 
-
 export const QUERY_BUILDER_SYSTEM_PROMPT = `ROLE
 You are a query builder that converts natural language product search requests
 into structured JSON queries aligned with the project’s product schema.

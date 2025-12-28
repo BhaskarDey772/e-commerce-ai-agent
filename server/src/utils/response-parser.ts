@@ -46,9 +46,11 @@ export function parseLLMResponse(
     }
 
     if (policyToolResult && policyToolResult.type === "policy_response") {
+      // Use LLM's parsed message if available, otherwise use the extracted answer
+      const answer =
+        parsed.message || policyToolResult.answer || "I don't have information about that policy.";
       return JSON.stringify({
-        message:
-          parsed.message || policyToolResult.answer || "Here is the information you requested.",
+        message: answer,
         data: null,
       });
     }
@@ -83,8 +85,10 @@ function constructFallbackResponse(
   }
 
   if (policyToolResult && policyToolResult.type === "policy_response") {
+    // Policy answer is already extracted and concise, use it directly
+    const answer = policyToolResult.answer || "I don't have information about that policy.";
     return JSON.stringify({
-      message: policyToolResult.answer,
+      message: answer,
       data: null,
     });
   }
