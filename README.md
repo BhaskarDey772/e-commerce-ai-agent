@@ -30,7 +30,7 @@ Spur is a modern e-commerce platform featuring an intelligent AI assistant that 
 - **Component Library**: shadcn/ui components for consistent design
 - **Real-time Updates**: Instant feedback and smooth interactions
 - **Markdown Rendering**: Rich text formatting in AI responses
-- **HTTPS Image Support**: Automatic HTTP to HTTPS conversion for secure image loading
+- **CDN Image Loading**: Direct image loading from Flipkart CDN with optimized partial URLs
 - **Product Image Carousel**: Interactive image gallery with thumbnail navigation
 - **Structured Responses**: Rich product cards, policy information, and formatted messages
 
@@ -82,9 +82,9 @@ Spur/
 │   │   ├── pages/                      # Page components
 │   │   │   └── ProductsPage.tsx        # Main products page
 │   │   ├── lib/                        # Utilities and config
-│   │   │   ├── api.ts                  # Unified API client (products, chat, images)
+│   │   │   ├── api.ts                  # Unified API client (products, chat)
 │   │   │   ├── config.ts               # API configuration
-│   │   │   ├── utils.ts                # Utilities (image proxying, etc.)
+│   │   │   ├── utils.ts                # Utilities (image URLs, text truncation)
 │   │   │   └── chat-helpers.ts         # Chat-related helper types
 │   │   ├── types/                      # TypeScript type definitions
 │   │   │   ├── chat.ts                 # Chat-related types
@@ -101,8 +101,7 @@ Spur/
 │   ├── src/
 │   │   ├── routes/                     # API routes
 │   │   │   ├── chat.ts                 # Chat/conversation endpoints
-│   │   │   ├── products.ts             # Product endpoints
-│   │   │   └── images.ts               # Image proxy endpoints
+│   │   │   └── products.ts             # Product endpoints
 │   │   ├── utils/                      # Utility functions
 │   │   │   ├── chat-tools.ts           # AI tool definitions
 │   │   │   ├── conversation-manager.ts # Conversation logic
@@ -112,7 +111,6 @@ Spur/
 │   │   │   ├── embeddings.ts           # AI SDK embeddings
 │   │   │   ├── knowledge.ts            # Policy/FAQ search
 │   │   │   ├── product-cache.ts        # Redis product caching
-│   │   │   ├── image-cache.ts          # Image caching
 │   │   │   ├── spec-parser.ts          # Product spec parsing
 │   │   │   ├── response-parser.ts      # LLM response parsing
 │   │   │   ├── toon-converter.ts       # JSON to TOON conversion
@@ -125,7 +123,6 @@ Spur/
 │   │   │   ├── products.ts             # Product types
 │   │   │   ├── query.ts                # Query builder types
 │   │   │   ├── specifications.ts       # Spec parsing types
-│   │   │   ├── image-cache.ts          # Image cache types
 │   │   │   ├── response.ts             # API response types
 │   │   │   └── index.ts                # Type exports
 │   │   ├── lib/                        # Core libraries
@@ -296,12 +293,6 @@ The frontend will start on `http://localhost:5173`
 - `GET /products/categories/list` - Get all categories
 - `GET /products/brands/list` - Get all brands
 
-### Image Endpoints
-
-- `GET /api/images/proxy` - Proxy and cache images
-  - Query params: `url` (required), `productId` (optional)
-  - Converts HTTP to HTTPS and caches images server-side
-
 ### Health Check
 
 - `GET /health` - Server health status
@@ -347,7 +338,7 @@ bun run db:studio
 ### Architecture Overview
 
 #### Frontend Architecture
-- **Unified API Client**: Single `api.ts` file handles all API calls (products, chat, images)
+- **Unified API Client**: Single `api.ts` file handles all API calls (products, chat)
 - **Type Safety**: Centralized type definitions in `types/` folder
 - **Component-Based**: Modular React components with shadcn/ui
 - **State Management**: React hooks with module-level caching for conversations
@@ -428,6 +419,17 @@ bun run db:studio
 - **Hybrid Search**: Combines structured SQL queries with semantic similarity
 - **TOON Format**: Product results converted to TOON before sending to LLM
 
+### Image Handling
+
+Product images use an optimized partial URL approach:
+
+1. **Database Storage**: Images stored as partial paths (e.g., `/image/path/product.jpeg`)
+2. **Frontend Conversion**: `api.getImageUrl()` prepends the CDN domain (`https://rukminim2.flixcart.com`)
+3. **Benefits**: 
+   - Smaller database footprint
+   - Easy CDN switching if needed
+   - Direct CDN loading (no proxy overhead)
+
 ### Token Optimization (TOON)
 
 The platform uses **TOON (Token-Oriented Object Notation)** format to reduce token usage by 30-60%:
@@ -479,7 +481,7 @@ The frontend is configured for Netlify deployment:
    - Set build command: `npm run build`
    - Set publish directory: `dist`
    - The `public/_redirects` file handles SPA routing (`/* /index.html 200`)
-   - Images automatically converted from HTTP to HTTPS
+   - Images load directly from Flipkart CDN using optimized partial URLs
 
 ### Backend (Docker)
 
