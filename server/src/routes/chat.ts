@@ -201,7 +201,7 @@ router.get("/conversations", async (req: Request, res: Response) => {
           take: 1, // First message for preview
         },
         _count: {
-          select: { messages: true },
+          select: { messages: true }, // 3. Validation
         },
         session: {
           select: {

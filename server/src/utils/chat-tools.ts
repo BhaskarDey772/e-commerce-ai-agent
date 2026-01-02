@@ -37,9 +37,13 @@ export function createChatTools(
       }),
       execute: async (input: unknown) => {
         const { query } = input as { query: string };
+        // Normalize query once here (LLM may modify the query, so we normalize tool input)
         const normalizedQuery = normalizeQuery(query);
         try {
-          const knowledge = await searchKnowledge(normalizedQuery, 5);
+          const knowledge = await searchKnowledge(
+            normalizedQuery,
+            env.MAX_KNOWLEDGE_BASE_SEARCH_ITEMS,
+          );
 
           const topResult = knowledge[0];
 

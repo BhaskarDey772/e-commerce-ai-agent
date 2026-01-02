@@ -29,7 +29,7 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 RUN npx prisma generate
 
 # Create cache directory
-RUN mkdir -p /app/cache/images
+# RUN mkdir -p /app/cache/images
 
 # Expose port
 EXPOSE 3001

@@ -115,16 +115,13 @@ class API {
     return response.data;
   }
 
-  // Image URL helper
   private static readonly FLIPKART_CDN = "https://rukminim2.flixcart.com";
 
   getImageUrl(url: string | null | undefined): string {
     if (!url) return "";
-    // Handle partial Flipkart image URLs (e.g., /image/short/...)
     if (url.startsWith("/image/")) {
       return `${API.FLIPKART_CDN}${url}`;
     }
-    // Return as-is for other URLs (data:, blob:, https://, etc.)
     return url;
   }
 }

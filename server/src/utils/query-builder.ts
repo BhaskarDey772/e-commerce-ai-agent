@@ -3,12 +3,16 @@ import { generateText } from "ai";
 import { prisma } from "@/lib";
 import type { ProductQuery, ProductSearchResult } from "@/types";
 import { QUERY_BUILDER_SYSTEM_PROMPT } from "@/prompts/query-builder-prompt";
-import { generateEmbedding } from "./embeddings";
+import { generateEmbeddings } from "./embeddings";
 import { normalizeQuery } from "./query-normalizer";
 
-async function buildProductQueryWithLLM(userQuery: string): Promise<ProductQuery> {
+async function buildProductQueryWithLLM(
+  userQuery: string,
+  fetchLimit: number,
+): Promise<ProductQuery> {
   const queryModel = openai("gpt-4o-mini");
-  const normalizedQuery = normalizeQuery(userQuery);
+  const normalizedQuery = userQuery;
+  console.log("userQuery", userQuery);
 
   const result = await generateText({
     model: queryModel,
@@ -24,31 +28,26 @@ async function buildProductQueryWithLLM(userQuery: string): Promise<ProductQuery
     ],
   });
 
+  console.log("result", result.text);
+
   try {
     let jsonText = result.text.trim();
 
-    // Remove markdown code blocks if present
     jsonText = jsonText.replace(/```json\s*/g, "").replace(/```\s*/g, "");
 
-    // Find JSON object - use non-greedy match to get first complete object
     const jsonMatch = jsonText.match(/\{[\s\S]*?\}/);
     if (jsonMatch) {
       let jsonStr = jsonMatch[0];
 
-      // Try to fix common JSON issues
-      // Remove trailing commas before closing braces/brackets
       jsonStr = jsonStr.replace(/,(\s*[}\]])/g, "$1");
 
-      // Fix unquoted keys
       jsonStr = jsonStr.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
 
-      // Try parsing
       try {
         const parsed = JSON.parse(jsonStr);
-        // Validate parsed object has expected structure
         if (typeof parsed === "object" && parsed !== null) {
           return {
-            limit: 20,
+            limit: fetchLimit,
             sortBy: "newest",
             ...parsed,
           };
@@ -61,12 +60,12 @@ async function buildProductQueryWithLLM(userQuery: string): Promise<ProductQuery
     console.error("Error parsing LLM query response:", error);
   }
 
-  return buildProductQueryRegex(userQuery);
+  return buildProductQueryRegex(userQuery, fetchLimit);
 }
 
-function buildProductQueryRegex(userQuery: string): ProductQuery {
+function buildProductQueryRegex(userQuery: string, fetchLimit: number): ProductQuery {
   const query: ProductQuery = {
-    limit: 20,
+    limit: fetchLimit,
     sortBy: "newest",
   };
 
@@ -176,14 +175,10 @@ function buildProductQueryRegex(userQuery: string): ProductQuery {
 
   let searchText = userQuery;
 
-  // Remove price patterns but keep the rest
   searchText = searchText.replace(/\d+\s*k?\s*(rupees|rs)?/gi, "");
   searchText = searchText.replace(/under|below|less\s+than|above|more\s+than/gi, "");
   searchText = searchText.replace(/best|top|high\s+rating/gi, "");
 
-  // Preserve gender and descriptive terms
-  // Keep words like: man, men, woman, women, boy, girl, kids, children, etc.
-  // Also keep "for" when followed by these terms
   searchText = searchText.replace(/\s+/g, " ").trim();
 
   if (searchText.length > 2) {
@@ -294,7 +289,8 @@ function formatProductResult(product: {
 }
 
 export async function executeProductQuery(query: ProductQuery): Promise<ProductSearchResult[]> {
-  const limit = query.limit || 20;
+  // Use the limit from query (should always be set by caller)
+  const limit = query.limit ?? 20;
   const { clause: whereClause, params: whereParams } = buildWhereClause(query);
   const orderBy = buildOrderBy(query.sortBy);
 
@@ -367,10 +363,12 @@ export async function searchProductsForLLM(
     productUrl: string | null;
   }[];
 }> {
-  const normalizedQuery = normalizeQuery(userQuery);
-  const structuredQuery = await buildProductQueryWithLLM(normalizedQuery);
+  const normalizedQuery = userQuery;
+  const fetchLimit = limit * 2;
+  const structuredQuery = await buildProductQueryWithLLM(normalizedQuery, fetchLimit);
+  console.log("structuredQuery", structuredQuery);
 
-  const products = await executeProductQuery({ ...structuredQuery, limit: limit * 2 });
+  const products = await executeProductQuery({ ...structuredQuery, limit: fetchLimit });
 
   if (products.length === 0) {
     return {
@@ -380,29 +378,35 @@ export async function searchProductsForLLM(
     };
   }
 
-  const userQueryEmbedding = await generateEmbedding(normalizedQuery);
-
-  const productsWithSimilarity = await Promise.all(
-    products.map(async (product) => {
-      const productText = [
-        product.name,
-        product.brand || "",
-        product.productUrl || "",
-        product.category,
-        product.description || "",
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      const productEmbedding = await generateEmbedding(productText);
-      const similarity = cosineSimilarity(userQueryEmbedding, productEmbedding);
-
-      return {
-        ...product,
-        similarity,
-      };
-    }),
+  // Prepare all texts for batch embedding (1 user query + N products)
+  const productTexts = products.map((product) =>
+    [
+      product.name,
+      product.brand || "",
+      product.productUrl || "",
+      product.category,
+      product.description || "",
+    ]
+      .filter(Boolean)
+      .join(" "),
   );
+
+  // Single API call for all embeddings (user query + all products)
+  const allTexts = [normalizedQuery, ...productTexts];
+  const allEmbeddings = await generateEmbeddings(allTexts);
+
+  const userQueryEmbedding = allEmbeddings[0] ?? [];
+  const productEmbeddings = allEmbeddings.slice(1);
+
+  // Calculate similarity for each product
+  const productsWithSimilarity = products.map((product, index) => {
+    const productEmbedding = productEmbeddings[index] ?? [];
+    const similarity = cosineSimilarity(userQueryEmbedding, productEmbedding);
+    return {
+      ...product,
+      similarity,
+    };
+  });
 
   const rankedProducts = productsWithSimilarity
     .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
@@ -432,6 +436,7 @@ export async function searchProducts(
   userQuery: string,
   limit: number = 20,
 ): Promise<ProductSearchResult[]> {
-  const structuredQuery = await buildProductQueryWithLLM(userQuery);
+  const normalizedQuery = normalizeQuery(userQuery);
+  const structuredQuery = await buildProductQueryWithLLM(normalizedQuery, limit);
   return await executeProductQuery({ ...structuredQuery, limit });
 }

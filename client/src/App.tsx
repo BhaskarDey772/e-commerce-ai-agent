@@ -1,6 +1,5 @@
 import { ShoppingBag, Sparkles } from "lucide-react";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ProductsPage from "./pages/ProductsPage";
 
@@ -8,7 +7,6 @@ function App() {
   return (
     <TooltipProvider>
       <Toaster />
-      <Sonner />
       <div className="min-h-screen bg-background">
         {/* Navigation */}
         <nav className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">

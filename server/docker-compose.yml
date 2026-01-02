@@ -23,8 +23,8 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3001"
-    volumes:
-      - image-cache:/app/cache/images
+    # volumes:
+    #   - image-cache:/app/cache/images
     environment:
       NODE_ENV: production
       PORT: 3001
